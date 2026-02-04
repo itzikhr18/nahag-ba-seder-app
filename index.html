@@ -502,14 +502,23 @@
 // ============================================================
 // DATA
 // ============================================================
-let students = JSON.parse(localStorage.getItem('drv_students') || '[]');
-let lessons = JSON.parse(localStorage.getItem('drv_lessons') || '[]');
-let payments = JSON.parse(localStorage.getItem('drv_payments') || '[]');
+let students, lessons, payments;
+try {
+  students = JSON.parse(localStorage.getItem('drv_students') || '[]');
+  lessons = JSON.parse(localStorage.getItem('drv_lessons') || '[]');
+  payments = JSON.parse(localStorage.getItem('drv_payments') || '[]');
+} catch(e) {
+  students = []; lessons = []; payments = [];
+}
 
 function saveData() {
-  localStorage.setItem('drv_students', JSON.stringify(students));
-  localStorage.setItem('drv_lessons', JSON.stringify(lessons));
-  localStorage.setItem('drv_payments', JSON.stringify(payments));
+  try {
+    localStorage.setItem('drv_students', JSON.stringify(students));
+    localStorage.setItem('drv_lessons', JSON.stringify(lessons));
+    localStorage.setItem('drv_payments', JSON.stringify(payments));
+  } catch(e) {
+    showToast('⚠️ שגיאה בשמירה — ייתכן שהאחסון מלא');
+  }
 }
 
 // ============================================================
@@ -525,7 +534,8 @@ function formatDateHeb(ds) {
   const d = new Date(ds+'T00:00:00');
   return `יום ${DAYS_HEB[d.getDay()]}, ${d.getDate()} ${MONTHS_HEB[d.getMonth()]}`;
 }
-function todayStr() { return new Date().toISOString().split('T')[0]; }
+function dateStr(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function todayStr() { return dateStr(new Date()); }
 function isToday(ds) { return ds === todayStr(); }
 function isThisWeek(ds) {
   const t = new Date(), d = new Date(ds+'T00:00:00');
@@ -647,6 +657,7 @@ function saveLesson(withWa) {
   const dur=document.getElementById('lessonDuration').value, addr=document.getElementById('lessonAddress').value.trim();
   if(!sid||!d||!t){ showToast('⚠️ נא למלא תלמיד, תאריך ושעה'); return; }
   const s = students.find(x=>x.id===sid);
+  if(!s){ showToast('⚠️ תלמיד לא נמצא'); return; }
   lessons.push({ id:genId(), studentId:sid, studentName:s.name, date:d, time:t, duration:parseInt(dur), address:addr, createdAt:new Date().toISOString() });
   s.lessonsDone = (s.lessonsDone||0)+1;
   saveData(); closeModal('modalNewLesson'); showToast('✅ שיעור נקבע'); renderAll();
@@ -693,6 +704,7 @@ function savePayment() {
   const note=document.getElementById('payNote').value.trim();
   if(!sid||!amount){ showToast('⚠️ נא למלא תלמיד וסכום'); return; }
   const s=students.find(x=>x.id===sid);
+  if(!s){ showToast('⚠️ תלמיד לא נמצא'); return; }
   payments.push({ id:genId(), studentId:sid, studentName:s.name, amount, method, date, note, createdAt:new Date().toISOString() });
   saveData(); closeModal('modalPayment'); showToast('✅ תשלום נרשם'); renderAll();
 }
@@ -709,6 +721,7 @@ function sendDebtWa(sid) {
 // ---- STUDENT DETAIL ----
 function deleteStudent(sid) {
   const s=students.find(x=>x.id===sid);
+  if(!s) return;
   if(!confirm(`למחוק את ${s.name}? כל השיעורים והתשלומים שלו יימחקו גם.`))return;
   students=students.filter(x=>x.id!==sid);
   lessons=lessons.filter(l=>l.studentId!==sid);
@@ -797,7 +810,7 @@ function renderCalendar() {
   const todayD = todayStr();
   let hdr = '<div></div>';
   days.forEach(d => {
-    const ds = d.toISOString().split('T')[0];
+    const ds = dateStr(d);
     const isTd = ds===todayD;
     hdr += `<div class="cal-day-label ${isTd?'today':''}"><span class="cal-day-num">${d.getDate()}</span>${DAYS_SHORT[d.getDay()]}</div>`;
   });
@@ -808,7 +821,7 @@ function renderCalendar() {
   for(let h=START_HOUR; h<END_HOUR; h++) {
     body += `<div class="cal-hour-label">${String(h).padStart(2,'0')}:00</div>`;
     days.forEach(d => {
-      const ds = d.toISOString().split('T')[0];
+      const ds = dateStr(d);
       const isTd = ds===todayD;
       body += `<div class="cal-cell ${isTd?'today-col':''}" data-date="${ds}" data-hour="${h}" onclick="onCalCellClick('${ds}','${String(h).padStart(2,'0')}:00')"></div>`;
     });
@@ -820,7 +833,7 @@ function renderCalendar() {
   lessons.forEach(l => {
     const [lh,lm] = l.time.split(':').map(Number);
     if(lh < START_HOUR || lh >= END_HOUR) return;
-    const dayIdx = days.findIndex(d => d.toISOString().split('T')[0] === l.date);
+    const dayIdx = days.findIndex(d => dateStr(d) === l.date);
     if(dayIdx < 0) return;
     if(!eventsByDay[dayIdx]) eventsByDay[dayIdx] = [];
     eventsByDay[dayIdx].push({ lesson: l, startMin: lh*60+lm, endMin: lh*60+lm+(l.duration||40) });
@@ -1013,7 +1026,7 @@ function exportData() {
   a.href = url;
   a.download = `nahag-baseder-backup-${todayStr()}.json`;
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast('📥 גיבוי הורד בהצלחה');
 }
 function importData() {
