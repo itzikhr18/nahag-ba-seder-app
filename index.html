@@ -578,13 +578,37 @@ function openModal(id) { document.getElementById(id).classList.add('show'); }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 function adjustCount(id,d) { const el=document.getElementById(id); let v=parseInt(el.textContent)+d; if(v<0)v=0; el.textContent=v; }
 
+// Helper: transition from student detail to edit modal
+function editStudentFromDetail(sid) {
+  const s = students.find(x => x.id === sid);
+  if (!s) {
+    showToast('⚠️ שגיאה - תלמיד לא נמצא');
+    closeModal('modalStudentDetail');
+    return;
+  }
+  closeModal('modalStudentDetail');
+  openNewStudentModal(sid);
+}
+
+// Helper: transition from student detail to payment modal
+function paymentFromDetail(sid) {
+  const s = students.find(x => x.id === sid);
+  if (!s) {
+    showToast('⚠️ שגיאה - תלמיד לא נמצא');
+    closeModal('modalStudentDetail');
+    return;
+  }
+  closeModal('modalStudentDetail');
+  openPaymentModal(sid);
+}
+
 // ---- NEW / EDIT STUDENT ----
 let editingStudentId = null;
 function openNewStudentModal(editId) {
   editingStudentId = editId || null;
   if(editingStudentId) {
     const s = students.find(x=>x.id===editingStudentId);
-    if(!s) return;
+    if(!s) { showToast('⚠️ תלמיד לא נמצא'); return; }
     document.getElementById('newStudentName').value = s.name;
     document.getElementById('newStudentPhone').value = s.phone;
     document.getElementById('newStudentPrice').value = s.price||170;
@@ -626,7 +650,10 @@ function saveNewStudent() {
 // ---- NEW LESSON ----
 function openNewLessonModal(prefillDate, prefillTime) {
   populateStudentSelect('lessonStudent');
-  document.getElementById('lessonDate').value = prefillDate || todayStr();
+  const today = todayStr();
+  const dateInput = document.getElementById('lessonDate');
+  dateInput.min = today; // Prevent selecting past dates
+  dateInput.value = (prefillDate && prefillDate >= today) ? prefillDate : today;
   document.getElementById('lessonTime').value = prefillTime || '';
   document.getElementById('lessonDuration').value = '40';
   document.getElementById('lessonAddress').value = '';
@@ -656,6 +683,18 @@ function saveLesson(withWa) {
   const sid=document.getElementById('lessonStudent').value, d=document.getElementById('lessonDate').value, t=document.getElementById('lessonTime').value;
   const dur=document.getElementById('lessonDuration').value, addr=document.getElementById('lessonAddress').value.trim();
   if(!sid||!d||!t){ showToast('⚠️ נא למלא תלמיד, תאריך ושעה'); return; }
+
+  // Validate not in the past
+  const now = new Date();
+  const today = todayStr();
+  if(d < today) { showToast('⚠️ לא ניתן לקבוע שיעור בתאריך שעבר'); return; }
+  if(d === today) {
+    const [hh, mm] = t.split(':').map(Number);
+    const lessonTime = hh * 60 + mm;
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    if(lessonTime < currentTime) { showToast('⚠️ לא ניתן לקבוע שיעור בשעה שעברה'); return; }
+  }
+
   const s = students.find(x=>x.id===sid);
   if(!s){ showToast('⚠️ תלמיד לא נמצא'); return; }
   lessons.push({ id:genId(), studentId:sid, studentName:s.name, date:d, time:t, duration:parseInt(dur), address:addr, createdAt:new Date().toISOString() });
@@ -756,8 +795,8 @@ function openStudentDetail(sid) {
 
   h += `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
     <button class="btn btn-whatsapp btn-sm" style="flex:1;min-width:45%;" onclick="window.open('https://wa.me/${formatPhone(s.phone)}','_blank')">💬 וואטסאפ</button>
-    <button class="btn btn-primary btn-sm" style="flex:1;min-width:45%;" onclick="closeModal('modalStudentDetail');openPaymentModal('${s.id}')">💳 תשלום</button>
-    <button class="btn btn-outline btn-sm" style="flex:1;min-width:45%;" onclick="closeModal('modalStudentDetail');openNewStudentModal('${s.id}')">✏️ עריכה</button>
+    <button class="btn btn-primary btn-sm" style="flex:1;min-width:45%;" onclick="paymentFromDetail('${s.id}')">💳 תשלום</button>
+    <button class="btn btn-outline btn-sm" style="flex:1;min-width:45%;" onclick="editStudentFromDetail('${s.id}')">✏️ עריכה</button>
     ${bal<0?`<button class="btn btn-outline btn-sm" style="flex:1;min-width:45%;border-color:var(--warning);color:var(--warning);" onclick="sendDebtWa('${s.id}')">⚠️ תזכורת חוב</button>`:''}
   </div>`;
 
@@ -876,6 +915,15 @@ function renderCalendar() {
 }
 
 function onCalCellClick(date, time) {
+  const today = todayStr();
+  if(date < today) { showToast('⚠️ לא ניתן לקבוע שיעור בתאריך שעבר'); return; }
+  if(date === today) {
+    const now = new Date();
+    const [hh, mm] = time.split(':').map(Number);
+    const clickedTime = hh * 60 + mm;
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    if(clickedTime < currentTime) { showToast('⚠️ לא ניתן לקבוע שיעור בשעה שעברה'); return; }
+  }
   openNewLessonModal(date, time);
 }
 
