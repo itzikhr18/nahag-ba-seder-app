@@ -963,6 +963,14 @@ function savePayment() {
   saveData(); closeModal('modalPayment'); showToast('✅ תשלום נרשם'); renderAll();
 }
 
+function deletePayment(pid) {
+  if(!confirm('למחוק את התשלום?')) return;
+  payments = payments.filter(p => p.id !== pid);
+  saveData();
+  showToast('🗑️ תשלום נמחק');
+  renderAll();
+}
+
 // ---- SEND DEBT REMINDER WA ----
 function sendDebtWa(sid) {
   const s=students.find(x=>x.id===sid); if(!s)return;
@@ -1018,7 +1026,14 @@ function openStudentDetail(sid) {
   if(sPayments.length>0) {
     h += `<div class="section-title">תשלומים</div>`;
     sPayments.slice(0,10).forEach(p=>{
-      h += `<div class="payment-item"><div class="payment-amount income">+${fmtMoney(p.amount)}</div><div class="payment-info"><div class="payment-name">${escHtml(p.method)}</div><div class="payment-meta">${formatDateHeb(p.date)}${p.note?' · '+escHtml(p.note):''}</div></div></div>`;
+      h += `<div class="payment-item">
+        <div class="payment-amount income">+${fmtMoney(p.amount)}</div>
+        <div class="payment-info">
+          <div class="payment-name">${escHtml(p.method)}</div>
+          <div class="payment-meta">${formatDateHeb(p.date)}${p.note?' · '+escHtml(p.note):''}</div>
+        </div>
+        <button class="icon-btn" onclick="event.stopPropagation();deletePayment('${p.id}')" title="מחיקה" style="color:var(--danger);">🗑️</button>
+      </div>`;
     });
   }
   if(sLessons.length>0) {
@@ -1201,7 +1216,14 @@ function renderFinance() {
   } else {
     let ph = '';
     recent.forEach(p => {
-      ph += `<div class="payment-item"><div class="payment-amount income">+${fmtMoney(p.amount)}</div><div class="payment-info"><div class="payment-name">${escHtml(p.studentName)}</div><div class="payment-meta">${formatDateHeb(p.date)} · ${escHtml(p.method)}${p.note?' · '+escHtml(p.note):''}</div></div></div>`;
+      ph += `<div class="payment-item">
+        <div class="payment-amount income">+${fmtMoney(p.amount)}</div>
+        <div class="payment-info">
+          <div class="payment-name">${escHtml(p.studentName)}</div>
+          <div class="payment-meta">${formatDateHeb(p.date)} · ${escHtml(p.method)}${p.note?' · '+escHtml(p.note):''}</div>
+        </div>
+        <button class="icon-btn" onclick="deletePayment('${p.id}')" title="מחיקה" style="color:var(--danger);">🗑️</button>
+      </div>`;
     });
     ph += `<button class="btn btn-primary" style="margin-top:10px;" onclick="openPaymentModal()">💳 רישום תשלום</button>`;
     payC.innerHTML = ph;
