@@ -219,6 +219,74 @@
   .month-picker { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; justify-content: center; }
   .month-picker-label { font-family: 'Rubik', sans-serif; font-weight: 600; font-size: 15px; min-width: 120px; text-align: center; }
 
+  /* ===== LICENSE SCREEN ===== */
+  .license-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .license-screen.hidden { display: none; }
+  .license-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 30px 24px;
+    max-width: 360px;
+    width: 100%;
+    text-align: center;
+  }
+  .license-logo { font-size: 48px; margin-bottom: 12px; }
+  .license-title { font-family: 'Rubik', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .license-title span { color: var(--accent); }
+  .license-subtitle { font-size: 13px; color: var(--text-dim); margin-bottom: 24px; }
+  .license-input {
+    width: 100%;
+    padding: 14px 16px;
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: 'Rubik', sans-serif;
+    font-size: 18px;
+    text-align: center;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .license-input:focus { outline: none; border-color: var(--accent); }
+  .license-input::placeholder { letter-spacing: 0; font-size: 14px; }
+  .license-error { color: var(--danger); font-size: 13px; margin-bottom: 12px; display: none; }
+  .license-error.show { display: block; }
+  .license-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    border: none;
+    border-radius: var(--radius-sm);
+    color: #000;
+    font-family: 'Heebo', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .license-btn:hover { filter: brightness(1.1); }
+  .license-footer { margin-top: 20px; font-size: 11px; color: var(--text-muted); }
+
+  /* ===== LICENSED USER BADGE ===== */
+  .licensed-badge {
+    font-size: 10px;
+    color: var(--accent);
+    background: var(--accent-glow);
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-right: 8px;
+  }
+
   /* ===== SCROLLBAR ===== */
   ::-webkit-scrollbar { width: 3px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -268,11 +336,25 @@
 </head>
 <body>
 
+<!-- ===== LICENSE ACTIVATION SCREEN ===== -->
+<div class="license-screen" id="licenseScreen">
+  <div class="license-box">
+    <div class="license-logo">🚗</div>
+    <div class="license-title">נהג<span>בסדר</span></div>
+    <div class="license-subtitle">הזן את קוד ההפעלה שקיבלת</div>
+    <input type="text" class="license-input" id="licenseCodeInput" placeholder="XXXX-XXXX" maxlength="9" dir="ltr">
+    <div class="license-error" id="licenseError">❌ קוד לא תקין, נסה שוב</div>
+    <button class="license-btn" onclick="activateLicense()">🔓 הפעל</button>
+    <div class="license-footer">לקבלת קוד הפעלה צור קשר עם המפתח</div>
+  </div>
+</div>
+
 <header class="header">
   <div class="header-inner">
     <div class="logo">
       <div class="logo-icon">🚗</div>
       <div class="logo-text">נהג<span>בסדר</span></div>
+      <span class="licensed-badge" id="licensedBadge"></span>
     </div>
     <div class="header-date" id="headerDate"></div>
   </div>
@@ -500,6 +582,98 @@
 <div class="toast" id="toast"></div>
 
 <script>
+// ============================================================
+// LICENSE SYSTEM
+// ============================================================
+// רשימת קודי הפעלה תקינים - הוסף קודים חדשים כאן
+const VALID_LICENSES = {
+  'NAHAG-001': 'מורה לדוגמה',
+  'NAHAG-002': 'מורה נהיגה 2',
+  'NAHAG-003': 'מורה נהיגה 3',
+  'NAHAG-004': 'מורה נהיגה 4',
+  'NAHAG-005': 'מורה נהיגה 5',
+  // הוסף קודים נוספים כאן בפורמט: 'CODE': 'שם המורה'
+};
+
+let currentLicense = null;
+let licensedName = null;
+
+function checkLicense() {
+  const savedLicense = localStorage.getItem('drv_license');
+  const savedName = localStorage.getItem('drv_licensed_name');
+
+  if (savedLicense && VALID_LICENSES[savedLicense.toUpperCase()]) {
+    currentLicense = savedLicense.toUpperCase();
+    licensedName = savedName || VALID_LICENSES[currentLicense];
+    hideLicenseScreen();
+    updateLicensedBadge();
+    return true;
+  }
+  showLicenseScreen();
+  return false;
+}
+
+function showLicenseScreen() {
+  document.getElementById('licenseScreen').classList.remove('hidden');
+}
+
+function hideLicenseScreen() {
+  document.getElementById('licenseScreen').classList.add('hidden');
+}
+
+function activateLicense() {
+  const input = document.getElementById('licenseCodeInput');
+  const error = document.getElementById('licenseError');
+  const code = input.value.trim().toUpperCase();
+
+  if (VALID_LICENSES[code]) {
+    // קוד תקין
+    currentLicense = code;
+    licensedName = VALID_LICENSES[code];
+    localStorage.setItem('drv_license', code);
+    localStorage.setItem('drv_licensed_name', licensedName);
+    error.classList.remove('show');
+    hideLicenseScreen();
+    updateLicensedBadge();
+    showToast('✅ האפליקציה הופעלה בהצלחה!');
+    renderAll();
+  } else {
+    // קוד לא תקין
+    error.classList.add('show');
+    input.style.borderColor = 'var(--danger)';
+    setTimeout(() => { input.style.borderColor = ''; }, 2000);
+  }
+}
+
+function updateLicensedBadge() {
+  const badge = document.getElementById('licensedBadge');
+  if (licensedName) {
+    badge.textContent = licensedName;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// הוסף מקף אוטומטי בזמן הקלדה
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('licenseCodeInput');
+  if (input) {
+    input.addEventListener('input', (e) => {
+      let val = e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      if (val.length > 5) {
+        val = val.slice(0, 5) + '-' + val.slice(5, 8);
+      }
+      e.target.value = val;
+    });
+
+    // אפשר ללחוץ Enter להפעלה
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') activateLicense();
+    });
+  }
+});
+
 // ============================================================
 // DATA
 // ============================================================
@@ -1175,7 +1349,9 @@ document.addEventListener('keydown',e=>{
 });
 
 // INIT
-renderAll();
+if (checkLicense()) {
+  renderAll();
+}
 </script>
 </body>
 </html>
