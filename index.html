@@ -717,7 +717,7 @@ function dateStr(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padSta
 function todayStr() { return dateStr(new Date()); }
 function tomorrowStr() { const t = new Date(); t.setDate(t.getDate()+1); return dateStr(t); }
 function isToday(ds) { return ds === todayStr(); }
-function getInitials(n) { return n.split(' ').map(w=>w[0]).join('').slice(0,2); }
+function getInitials(n) { if(!n || !n.trim()) return '?'; return n.split(' ').map(w=>w[0]).join('').slice(0,2); }
 function showToast(m) { const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
 function fmtMoney(n) { return n.toLocaleString('he-IL'); }
 function escHtml(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
@@ -870,7 +870,8 @@ function sendAllTomorrowReminders() {
   const tmrw = tomorrowStr();
   const tmrwLessons = lessons.filter(l=>l.date===tmrw).sort((a,b)=>a.time.localeCompare(b.time));
   if(tmrwLessons.length===0) { showToast('אין שיעורים מחר'); return; }
-  if(!confirm(`לשלוח תזכורת ל-${tmrwLessons.length} תלמידים?`)) return;
+  const popupWarning = tmrwLessons.length > 3 ? '\n\n⚠️ שים לב: אם חלונות לא נפתחים, יש לאשר pop-ups בדפדפן.' : '';
+  if(!confirm(`לשלוח תזכורת ל-${tmrwLessons.length} תלמידים?${popupWarning}`)) return;
 
   let i = 0;
   function sendNext() {
@@ -909,6 +910,22 @@ function saveLesson(withWa) {
     const lessonTime = hh * 60 + mm;
     const currentTime = now.getHours() * 60 + now.getMinutes();
     if(lessonTime < currentTime) { showToast('⚠️ לא ניתן לקבוע שיעור בשעה שעברה'); return; }
+  }
+
+  // Check for conflicting lessons (same time slot)
+  const [newH, newM] = t.split(':').map(Number);
+  const newStart = newH * 60 + newM;
+  const newEnd = newStart + parseInt(dur);
+  const conflict = lessons.find(l => {
+    if(l.date !== d) return false;
+    const [lh, lm] = l.time.split(':').map(Number);
+    const lStart = lh * 60 + lm;
+    const lEnd = lStart + (l.duration || 40);
+    return (newStart < lEnd && newEnd > lStart); // overlapping
+  });
+  if(conflict) {
+    showToast(`⚠️ יש כבר שיעור ב-${conflict.time} עם ${conflict.studentName}`);
+    return;
   }
 
   const s = students.find(x=>x.id===sid);
@@ -961,7 +978,8 @@ function deleteLesson(lid) {
 // Offer to send notification about available slot
 function offerSlotNotification(lesson, eligibleStudents) {
   const count = eligibleStudents.length;
-  if(!confirm(`התפנה מקום ביומן!\n\nיש ${count} תלמידים שמחפשים שעות ופנויים בתאריך זה.\n\nלשלוח להם הודעה?`)) return;
+  const popupWarning = count > 3 ? '\n\n⚠️ שים לב: אם חלונות לא נפתחים, יש לאשר pop-ups בדפדפן.' : '';
+  if(!confirm(`התפנה מקום ביומן!\n\nיש ${count} תלמידים שמחפשים שעות ופנויים בתאריך זה.\n\nלשלוח להם הודעה?${popupWarning}`)) return;
 
   const msg = buildSlotAvailableMsg(lesson.date, lesson.time, lesson.duration, lesson.address);
 
@@ -1035,11 +1053,33 @@ function sendDebtWa(sid) {
 function deleteStudent(sid) {
   const s=students.find(x=>x.id===sid);
   if(!s) return;
-  if(!confirm(`למחוק את ${s.name}? כל השיעורים והתשלומים שלו יימחקו גם.`))return;
+
+  // Check for future lessons
+  const today = todayStr();
+  const futureLessons = lessons.filter(l => l.studentId === sid && l.date >= today);
+
+  let confirmMsg = `למחוק את ${s.name}? כל השיעורים והתשלומים שלו יימחקו גם.`;
+  if(futureLessons.length > 0) {
+    confirmMsg += `\n\n⚠️ לתלמיד יש ${futureLessons.length} שיעורים עתידיים שיימחקו!`;
+  }
+  if(!confirm(confirmMsg)) return;
+
+  // Save future lessons data before deleting
+  const deletedLessons = [...futureLessons];
+
   students=students.filter(x=>x.id!==sid);
   lessons=lessons.filter(l=>l.studentId!==sid);
   payments=payments.filter(p=>p.studentId!==sid);
   saveData(); closeModal('modalStudentDetail'); showToast('🗑️ תלמיד נמחק'); renderAll();
+
+  // Offer to notify about available slots
+  if(deletedLessons.length > 0) {
+    const studentsWantingExtra = students.filter(st => st.wantsExtraLessons);
+    if(studentsWantingExtra.length > 0 && confirm(`התפנו ${deletedLessons.length} מקומות ביומן.\n\nלשלוח הודעה ל-${studentsWantingExtra.length} תלמידים שמחפשים שעות?`)) {
+      // Notify about the first available slot
+      offerSlotNotification(deletedLessons[0], studentsWantingExtra);
+    }
+  }
 }
 function openStudentDetail(sid) {
   const s=students.find(x=>x.id===sid); if(!s)return;
@@ -1391,7 +1431,35 @@ function exportData() {
   a.download = `nahag-baseder-backup-${todayStr()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  localStorage.setItem('drv_last_backup', todayStr());
   showToast('📥 גיבוי הורד בהצלחה');
+}
+
+function checkBackupReminder() {
+  const lastBackup = localStorage.getItem('drv_last_backup');
+  if (!lastBackup) {
+    // First time - set today and remind to backup
+    if (students.length > 0) {
+      setTimeout(() => {
+        if (confirm('💾 טרם ביצעת גיבוי לנתונים שלך.\n\nמומלץ לגבות את הנתונים באופן קבוע.\n\nלעבור לדף הכספים ולגבות עכשיו?')) {
+          showPage('finance');
+        }
+      }, 2000);
+    }
+    return;
+  }
+
+  const lastDate = new Date(lastBackup);
+  const now = new Date();
+  const daysSinceBackup = Math.floor((now - lastDate) / (1000 * 60 * 60 * 24));
+
+  if (daysSinceBackup >= 7) {
+    setTimeout(() => {
+      if (confirm(`💾 עברו ${daysSinceBackup} ימים מאז הגיבוי האחרון.\n\nמומלץ לגבות את הנתונים באופן שבועי.\n\nלעבור לדף הכספים ולגבות עכשיו?`)) {
+        showPage('finance');
+      }
+    }, 2000);
+  }
 }
 function importData() {
   const input = document.createElement('input');
@@ -1425,6 +1493,7 @@ document.addEventListener('keydown',e=>{
 // INIT
 if (checkLicense()) {
   renderAll();
+  checkBackupReminder();
 }
 </script>
 </body>
