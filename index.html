@@ -308,6 +308,7 @@
     <div style="margin-top:16px;">
       <button class="btn btn-primary" onclick="openNewLessonModal()">➕ קביעת שיעור חדש</button>
     </div>
+    <div id="tomorrowLessons" style="margin-top:20px;"></div>
     <div id="debtAlerts" style="margin-top:20px;"></div>
     <div style="margin-top:24px;display:flex;gap:8px;">
       <button class="btn btn-outline btn-sm" style="flex:1;" onclick="exportData()">📥 ייצוא גיבוי</button>
@@ -536,6 +537,7 @@ function formatDateHeb(ds) {
 }
 function dateStr(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function todayStr() { return dateStr(new Date()); }
+function tomorrowStr() { const t = new Date(); t.setDate(t.getDate()+1); return dateStr(t); }
 function isToday(ds) { return ds === todayStr(); }
 function isThisWeek(ds) {
   const t = new Date(), d = new Date(ds+'T00:00:00');
@@ -670,6 +672,45 @@ function buildWaMsg(sName,date,time,dur,addr) {
   if(addr) m += `📍 ${addr}\n`;
   m += `\nנתראה! 🚗`;
   return m;
+}
+
+// Build reminder message for tomorrow's lesson
+function buildReminderMsg(sName,time,dur,addr) {
+  let m = `היי ${sName} 👋\n\nתזכורת לשיעור נהיגה *מחר*:\n🕐 ${time}\n⏱️ ${dur} דקות\n`;
+  if(addr) m += `📍 ${addr}\n`;
+  m += `\nמאשר/ת? 🚗`;
+  return m;
+}
+
+// Send reminder for specific tomorrow lesson
+function sendTomorrowReminder(lid) {
+  const l = lessons.find(x=>x.id===lid); if(!l) return;
+  const s = students.find(x=>x.id===l.studentId); if(!s) return;
+  const msg = buildReminderMsg(s.name, l.time, l.duration, l.address);
+  window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+// Send reminders to all students with lessons tomorrow (opens one by one with delay)
+function sendAllTomorrowReminders() {
+  const tmrw = tomorrowStr();
+  const tmrwLessons = lessons.filter(l=>l.date===tmrw).sort((a,b)=>a.time.localeCompare(b.time));
+  if(tmrwLessons.length===0) { showToast('אין שיעורים מחר'); return; }
+  if(!confirm(`לשלוח תזכורת ל-${tmrwLessons.length} תלמידים?`)) return;
+
+  let i = 0;
+  function sendNext() {
+    if(i >= tmrwLessons.length) { showToast(`✅ נשלחו ${tmrwLessons.length} תזכורות`); return; }
+    const l = tmrwLessons[i];
+    const s = students.find(x=>x.id===l.studentId);
+    if(s) {
+      const msg = buildReminderMsg(s.name, l.time, l.duration, l.address);
+      window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`,'_blank');
+    }
+    i++;
+    if(i < tmrwLessons.length) setTimeout(sendNext, 800);
+    else showToast(`✅ נשלחו ${tmrwLessons.length} תזכורות`);
+  }
+  sendNext();
 }
 function updateWaPreview() {
   const sid=document.getElementById('lessonStudent').value, d=document.getElementById('lessonDate').value, t=document.getElementById('lessonTime').value, dur=document.getElementById('lessonDuration').value, addr=document.getElementById('lessonAddress').value.trim();
@@ -1031,6 +1072,33 @@ function renderDashboard() {
       h += `<div class="lesson-item"><div class="lesson-time"><div class="lesson-hour">${l.time}</div><div class="lesson-date-small">${l.date.slice(5).replace('-','/')}</div></div><div class="lesson-details"><div class="lesson-student-name">${escHtml(l.studentName)} ${tBadge}</div><div class="lesson-info">${l.duration} דק׳${l.address?' · 📍 '+escHtml(l.address):''}</div></div><div class="lesson-actions"><button class="icon-btn wa" onclick="sendLessonWa('${l.id}')" title="וואטסאפ">💬</button><button class="icon-btn" onclick="deleteLesson('${l.id}')" title="מחיקה" style="color:var(--danger);">✕</button></div></div>`;
     });
     uc.innerHTML = h;
+  }
+
+  // Tomorrow's lessons section
+  const tmrw = tomorrowStr();
+  const tmrwLessons = lessons.filter(l=>l.date===tmrw).sort((a,b)=>a.time.localeCompare(b.time));
+  const tlc = document.getElementById('tomorrowLessons');
+  if(tmrwLessons.length > 0) {
+    let tlh = `<div class="section-title">📅 שיעורים מחר (${tmrwLessons.length})</div>`;
+    tmrwLessons.forEach(l => {
+      tlh += `<div class="lesson-item">
+        <div class="lesson-time"><div class="lesson-hour">${l.time}</div><div class="lesson-date-small">${l.duration} דק׳</div></div>
+        <div class="lesson-details">
+          <div class="lesson-student-name">${escHtml(l.studentName)}</div>
+          <div class="lesson-info">${l.address ? '📍 '+escHtml(l.address) : ''}</div>
+        </div>
+        <div class="lesson-actions">
+          <button class="icon-btn wa" onclick="sendTomorrowReminder('${l.id}')" title="שליחת תזכורת">💬</button>
+        </div>
+      </div>`;
+    });
+    tlh += `<button class="btn btn-whatsapp" style="margin-top:10px;" onclick="sendAllTomorrowReminders()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      📨 שלח תזכורת לכולם
+    </button>`;
+    tlc.innerHTML = tlh;
+  } else {
+    tlc.innerHTML = '';
   }
 
   // Debt alerts on dashboard
