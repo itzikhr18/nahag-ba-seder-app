@@ -476,6 +476,10 @@
       <label class="form-label">הערות</label>
       <textarea class="form-textarea" id="newStudentNotes" placeholder="הערות..."></textarea>
     </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+      <input type="checkbox" id="newStudentWantsExtra" style="width:20px;height:20px;accent-color:var(--accent);">
+      <label for="newStudentWantsExtra" style="font-size:14px;color:var(--text);cursor:pointer;">מחפש שעות נוספות 🔔</label>
+    </div>
     <div style="display:flex;gap:8px;margin-top:16px;">
       <button type="button" class="btn btn-primary" style="flex:2" onclick="saveNewStudent()">💾 שמירה</button>
       <button type="button" class="btn btn-outline" style="flex:1" onclick="closeModal('modalNewStudent')">ביטול</button>
@@ -784,11 +788,13 @@ function openNewStudentModal(editId) {
     document.getElementById('newStudentPrice').value = s.price||170;
     document.getElementById('newStudentNotes').value = s.notes||'';
     document.getElementById('newStudentLessons').textContent = s.lessonsDone||0;
+    document.getElementById('newStudentWantsExtra').checked = s.wantsExtraLessons||false;
     document.querySelector('#modalNewStudent .modal-title').textContent = '✏️ עריכת תלמיד';
   } else {
     ['newStudentName','newStudentPhone','newStudentNotes'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('newStudentPrice').value = '170';
     document.getElementById('newStudentLessons').textContent = '0';
+    document.getElementById('newStudentWantsExtra').checked = false;
     document.querySelector('#modalNewStudent .modal-title').textContent = '👤 תלמיד חדש';
   }
   openModal('modalNewStudent');
@@ -799,12 +805,13 @@ function saveNewStudent() {
   const price = parseInt(document.getElementById('newStudentPrice').value)||170;
   const notes = document.getElementById('newStudentNotes').value.trim();
   const ld = parseInt(document.getElementById('newStudentLessons').textContent);
+  const wantsExtra = document.getElementById('newStudentWantsExtra').checked;
   if(!name||!phone){ showToast('⚠️ נא למלא שם וטלפון'); return; }
   const digits = phone.replace(/[\s\-()+"]/g,'').replace(/^\+/,'');
   if(digits.length < 9 || digits.length > 13 || !/^\d+$/.test(digits)){ showToast('⚠️ מספר טלפון לא תקין'); return; }
   if(editingStudentId) {
     const s = students.find(x=>x.id===editingStudentId);
-    if(s) { s.name=name; s.phone=phone; s.price=price; s.notes=notes; s.lessonsDone=ld;
+    if(s) { s.name=name; s.phone=phone; s.price=price; s.notes=notes; s.lessonsDone=ld; s.wantsExtraLessons=wantsExtra;
       // Update cached name in lessons/payments
       lessons.filter(l=>l.studentId===editingStudentId).forEach(l=>l.studentName=name);
       payments.filter(p=>p.studentId===editingStudentId).forEach(p=>p.studentName=name);
@@ -812,7 +819,7 @@ function saveNewStudent() {
     saveData(); closeModal('modalNewStudent'); showToast('✅ תלמיד עודכן'); renderAll();
     editingStudentId = null;
   } else {
-    students.push({ id:genId(), name, phone, price, notes, lessonsDone:ld, createdAt:new Date().toISOString() });
+    students.push({ id:genId(), name, phone, price, notes, lessonsDone:ld, wantsExtraLessons:wantsExtra, createdAt:new Date().toISOString() });
     saveData(); closeModal('modalNewStudent'); showToast('✅ תלמיד נוסף'); renderAll();
   }
 }
@@ -924,11 +931,61 @@ function sendLessonWa(lid) {
 function deleteLesson(lid) {
   if(!confirm('למחוק את השיעור?'))return;
   const lesson = lessons.find(l=>l.id===lid);
-  if(lesson) {
-    const s = students.find(x=>x.id===lesson.studentId);
-    if(s && s.lessonsDone > 0) s.lessonsDone--;
+  if(!lesson) return;
+
+  // Save lesson details before deleting
+  const deletedLesson = { ...lesson };
+
+  // Update student lesson count
+  const s = students.find(x=>x.id===lesson.studentId);
+  if(s && s.lessonsDone > 0) s.lessonsDone--;
+
+  // Delete the lesson
+  lessons=lessons.filter(l=>l.id!==lid);
+  saveData();
+  showToast('🗑️ שיעור נמחק');
+  renderAll();
+
+  // Check if there are students who want extra lessons and don't have a lesson on this date
+  const studentsWantingExtra = students.filter(st =>
+    st.wantsExtraLessons &&
+    st.id !== deletedLesson.studentId && // Not the student whose lesson was deleted
+    !lessons.some(l => l.studentId === st.id && l.date === deletedLesson.date) // No lesson on this date
+  );
+
+  if(studentsWantingExtra.length > 0) {
+    offerSlotNotification(deletedLesson, studentsWantingExtra);
   }
-  lessons=lessons.filter(l=>l.id!==lid); saveData(); showToast('🗑️ שיעור נמחק'); renderAll();
+}
+
+// Offer to send notification about available slot
+function offerSlotNotification(lesson, eligibleStudents) {
+  const count = eligibleStudents.length;
+  if(!confirm(`התפנה מקום ביומן!\n\nיש ${count} תלמידים שמחפשים שעות ופנויים בתאריך זה.\n\nלשלוח להם הודעה?`)) return;
+
+  const msg = buildSlotAvailableMsg(lesson.date, lesson.time, lesson.duration, lesson.address);
+
+  let i = 0;
+  function sendNext() {
+    if(i >= eligibleStudents.length) {
+      showToast(`✅ נשלחו ${eligibleStudents.length} הודעות`);
+      return;
+    }
+    const st = eligibleStudents[i];
+    window.open(`https://wa.me/${formatPhone(st.phone)}?text=${encodeURIComponent(msg)}`,'_blank');
+    i++;
+    if(i < eligibleStudents.length) setTimeout(sendNext, 800);
+    else showToast(`✅ נשלחו ${eligibleStudents.length} הודעות`);
+  }
+  sendNext();
+}
+
+// Build message for available slot
+function buildSlotAvailableMsg(date, time, dur, addr) {
+  let m = `היי! 👋\n\nהתפנה מקום לשיעור נהיגה:\n📅 ${formatDateHeb(date)}\n🕐 ${time}\n⏱️ ${dur} דקות\n`;
+  if(addr) m += `📍 ${addr}\n`;
+  m += `\nמתאים לך? 🚗`;
+  return m;
 }
 
 // ---- PAYMENT ----
@@ -1008,6 +1065,7 @@ function openStudentDetail(sid) {
       <div class="stat-card"><div class="stat-number ${balColor}">${bal<0?fmtMoney(Math.abs(bal)):bal>0?fmtMoney(bal):'0'}</div><div class="stat-label">${bal<0?'חוב ₪':bal>0?'זכות ₪':'מאוזן'}</div></div>
     </div>`;
   if(s.notes) h += `<div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">📝 ${escHtml(s.notes)}</div>`;
+  if(s.wantsExtraLessons) h += `<div style="font-size:12px;color:var(--blue);margin-bottom:12px;">🔔 מחפש שעות נוספות</div>`;
 
   h += `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
     <button class="btn btn-whatsapp btn-sm" style="flex:1;min-width:45%;" onclick="window.open('https://wa.me/${formatPhone(s.phone)}','_blank')">💬 וואטסאפ</button>
@@ -1317,7 +1375,8 @@ function renderStudents() {
     const bal=getStudentBalance(s);
     const lessonBadge = rem<=5?'badge-green':'badge-yellow';
     const debtBadge = bal<0?`<span class="badge badge-red">חוב ${fmtMoney(Math.abs(bal))} ₪</span>`:'';
-    h += `<div class="student-item" onclick="openStudentDetail('${s.id}')"><div class="student-avatar">${escHtml(getInitials(s.name))}</div><div class="student-info"><div class="student-name">${escHtml(s.name)}</div><div class="student-meta"><span>${s.lessonsDone||0}/28</span><span class="badge ${lessonBadge}">${rem===0?'מוכן!':'נותרו '+rem}</span>${debtBadge}</div></div><div class="student-actions"><button class="icon-btn wa" onclick="event.stopPropagation();window.open('https://wa.me/${formatPhone(s.phone)}','_blank')" title="וואטסאפ">💬</button></div></div>`;
+    const extraBadge = s.wantsExtraLessons?`<span class="badge badge-blue">🔔 מחפש שעות</span>`:'';
+    h += `<div class="student-item" onclick="openStudentDetail('${s.id}')"><div class="student-avatar">${escHtml(getInitials(s.name))}</div><div class="student-info"><div class="student-name">${escHtml(s.name)}</div><div class="student-meta"><span>${s.lessonsDone||0}/28</span><span class="badge ${lessonBadge}">${rem===0?'מוכן!':'נותרו '+rem}</span>${debtBadge}${extraBadge}</div></div><div class="student-actions"><button class="icon-btn wa" onclick="event.stopPropagation();window.open('https://wa.me/${formatPhone(s.phone)}','_blank')" title="וואטסאפ">💬</button></div></div>`;
   });
   c.innerHTML=h;
 }
