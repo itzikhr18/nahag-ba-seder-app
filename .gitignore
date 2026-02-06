@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# Development files
+generate-icons.js
+package.json
+package-lock.json
+
+# OS files
+.DS_Store
+Thumbs.db
