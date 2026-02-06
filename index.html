@@ -587,32 +587,68 @@
 
 <script>
 // ============================================================
-// LICENSE SYSTEM
+// LICENSE SYSTEM (with hashed codes for security)
 // ============================================================
-// רשימת קודי הפעלה תקינים - הוסף קודים חדשים כאן
+// פונקציית Hash פשוטה - הופכת קוד לערך מוצפן
+function hashCode(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  // Add salt and secondary hash for better security
+  const salted = 'NBS_' + Math.abs(hash).toString(16) + '_DRV';
+  let hash2 = 5381;
+  for (let i = 0; i < salted.length; i++) {
+    hash2 = ((hash2 << 5) + hash2) + salted.charCodeAt(i);
+  }
+  return Math.abs(hash2).toString(36).toUpperCase();
+}
+
+// קודי הפעלה מוצפנים - להוספת קוד חדש:
+// 1. הפעל בקונסול: hashCode('NAHAG-XXX')
+// 2. הוסף את התוצאה למטה עם שם המורה
 const VALID_LICENSES = {
-  'NAHAG-001': 'מורה לדוגמה',
-  'NAHAG-002': 'מורה נהיגה 2',
-  'NAHAG-003': 'מורה נהיגה 3',
-  'NAHAG-004': 'מורה נהיגה 4',
-  'NAHAG-005': 'מורה נהיגה 5',
-  // הוסף קודים נוספים כאן בפורמט: 'CODE': 'שם המורה'
+  'MZHCWP': 'מורה לדוגמה',       // NAHAG-001
+  'MYRXUG': 'מורה נהיגה 2',      // NAHAG-002
+  'NDLQ5P': 'מורה נהיגה 3',      // NAHAG-003
+  'NCWB3G': 'מורה נהיגה 4',      // NAHAG-004
+  'NC6W17': 'מורה נהיגה 5',      // NAHAG-005
+  // להוספת קודים: hashCode('CODE') בקונסול ← הוסף תוצאה כאן
 };
 
 let currentLicense = null;
 let licensedName = null;
 
 function checkLicense() {
-  const savedLicense = localStorage.getItem('drv_license');
+  const savedHash = localStorage.getItem('drv_license_hash');
   const savedName = localStorage.getItem('drv_licensed_name');
 
-  if (savedLicense && VALID_LICENSES[savedLicense.toUpperCase()]) {
-    currentLicense = savedLicense.toUpperCase();
-    licensedName = savedName || VALID_LICENSES[currentLicense];
+  // Check new hash-based license
+  if (savedHash && VALID_LICENSES[savedHash]) {
+    currentLicense = savedHash;
+    licensedName = savedName || VALID_LICENSES[savedHash];
     hideLicenseScreen();
     updateLicensedBadge();
     return true;
   }
+
+  // Migrate old plain-text license to hash
+  const oldLicense = localStorage.getItem('drv_license');
+  if (oldLicense) {
+    const oldHash = hashCode(oldLicense.toUpperCase());
+    if (VALID_LICENSES[oldHash]) {
+      localStorage.setItem('drv_license_hash', oldHash);
+      localStorage.removeItem('drv_license'); // Clean up old key
+      currentLicense = oldHash;
+      licensedName = savedName || VALID_LICENSES[oldHash];
+      hideLicenseScreen();
+      updateLicensedBadge();
+      return true;
+    }
+  }
+
   showLicenseScreen();
   return false;
 }
@@ -629,12 +665,13 @@ function activateLicense() {
   const input = document.getElementById('licenseCodeInput');
   const error = document.getElementById('licenseError');
   const code = input.value.trim().toUpperCase();
+  const codeHash = hashCode(code);
 
-  if (VALID_LICENSES[code]) {
+  if (VALID_LICENSES[codeHash]) {
     // קוד תקין
-    currentLicense = code;
-    licensedName = VALID_LICENSES[code];
-    localStorage.setItem('drv_license', code);
+    currentLicense = codeHash;
+    licensedName = VALID_LICENSES[codeHash];
+    localStorage.setItem('drv_license_hash', codeHash);
     localStorage.setItem('drv_licensed_name', licensedName);
     error.classList.remove('show');
     hideLicenseScreen();
@@ -714,8 +751,16 @@ function formatDateHeb(ds) {
   return `יום ${DAYS_HEB[d.getDay()]}, ${d.getDate()} ${MONTHS_HEB[d.getMonth()]}`;
 }
 function dateStr(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-function todayStr() { return dateStr(new Date()); }
-function tomorrowStr() { const t = new Date(); t.setDate(t.getDate()+1); return dateStr(t); }
+// "Working day" extends until 4:00 AM - helps late-night users
+function getWorkingDate() {
+  const now = new Date();
+  if (now.getHours() < 4) {
+    now.setDate(now.getDate() - 1); // Before 4AM = still "yesterday"
+  }
+  return now;
+}
+function todayStr() { return dateStr(getWorkingDate()); }
+function tomorrowStr() { const t = getWorkingDate(); t.setDate(t.getDate()+1); return dateStr(t); }
 function isToday(ds) { return ds === todayStr(); }
 function getInitials(n) { if(!n || !n.trim()) return '?'; return n.split(' ').map(w=>w[0]).join('').slice(0,2); }
 function showToast(m) { const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
@@ -1333,7 +1378,7 @@ function renderAll() {
 }
 
 function updateHeader() {
-  const n=new Date();
+  const n = getWorkingDate();
   document.getElementById('headerDate').textContent = `יום ${DAYS_HEB[n.getDay()]}, ${n.getDate()} ${MONTHS_HEB[n.getMonth()]} ${n.getFullYear()}`;
 }
 
