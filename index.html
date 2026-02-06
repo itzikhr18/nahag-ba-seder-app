@@ -713,12 +713,6 @@ function dateStr(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padSta
 function todayStr() { return dateStr(new Date()); }
 function tomorrowStr() { const t = new Date(); t.setDate(t.getDate()+1); return dateStr(t); }
 function isToday(ds) { return ds === todayStr(); }
-function isThisWeek(ds) {
-  const t = new Date(), d = new Date(ds+'T00:00:00');
-  const s = new Date(t); s.setDate(t.getDate()-t.getDay()); s.setHours(0,0,0,0);
-  const e = new Date(s); e.setDate(s.getDate()+7);
-  return d >= s && d < e;
-}
 function getInitials(n) { return n.split(' ').map(w=>w[0]).join('').slice(0,2); }
 function showToast(m) { const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
 function fmtMoney(n) { return n.toLocaleString('he-IL'); }
@@ -998,7 +992,6 @@ function openStudentDetail(sid) {
   const bal=getStudentBalance(s);
   const totalPaid=sPayments.reduce((sum,p)=>sum+p.amount,0);
   const balColor = bal < 0 ? 'red' : 'accent';
-  const balLabel = bal < 0 ? `חוב: ${fmtMoney(Math.abs(bal))} ₪` : bal > 0 ? `יתרת זכות: ${fmtMoney(bal)} ₪` : 'מאוזן ✓';
 
   let h = `
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;">
