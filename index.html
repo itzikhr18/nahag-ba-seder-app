@@ -3,12 +3,33 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+<!-- PWA Meta Tags -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="נהג בסדר">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0f1117">
 <meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%2322c55e' rx='20' width='100' height='100'/><text x='50' y='68' text-anchor='middle' font-size='50'>🚗</text></svg>">
+<meta name="application-name" content="נהג בסדר">
+<meta name="description" content="אפליקציה לניהול תלמידים, שיעורים ותשלומים למורי נהיגה">
+
+<!-- Manifest -->
+<link rel="manifest" href="./manifest.json">
+
+<!-- iOS Icons -->
+<link rel="apple-touch-icon" href="./icons/icon-180x180.png">
+<link rel="apple-touch-icon" sizes="152x152" href="./icons/icon-152x152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="./icons/icon-167x167.png">
+<link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180x180.png">
+
+<!-- Android/Chrome Icons -->
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192x192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512x512.png">
+
+<!-- Favicon -->
+<link rel="icon" type="image/png" sizes="96x96" href="./icons/icon-96x96.png">
+
 <title>נהג בסדר — ניהול שיעורי נהיגה</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -332,6 +353,160 @@
     .form-row.three { grid-template-columns: 1fr; }
     .nav-tab { font-size: 11px; padding: 8px 2px; }
   }
+
+  /* ===== VEHICLE PAGE ===== */
+  .vehicle-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .vehicle-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+  }
+  .vehicle-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .vehicle-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+  .vehicle-main-info h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .vehicle-plate {
+    font-family: 'Rubik', sans-serif;
+    font-size: 14px;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+  .vehicle-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .vehicle-detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .vehicle-detail-label {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .vehicle-detail-value {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  /* ===== REMINDERS LIST ===== */
+  .reminders-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .reminder-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  .reminder-item.warning {
+    border-color: var(--warning);
+    background: var(--warning-dim);
+  }
+  .reminder-item.danger {
+    border-color: var(--danger);
+    background: var(--danger-dim);
+  }
+  .reminder-item.ok {
+    border-color: var(--accent);
+  }
+  .reminder-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+  .reminder-item.warning .reminder-icon { background: var(--warning); }
+  .reminder-item.danger .reminder-icon { background: var(--danger); }
+  .reminder-item.ok .reminder-icon { background: var(--accent-dim); }
+  .reminder-content {
+    flex: 1;
+    min-width: 0;
+  }
+  .reminder-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+  .reminder-date {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .reminder-days {
+    font-family: 'Rubik', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+  }
+  .reminder-item.warning .reminder-days { color: var(--warning); background: rgba(245,158,11,0.2); }
+  .reminder-item.danger .reminder-days { color: var(--danger); background: rgba(239,68,68,0.2); }
+  .reminder-item.ok .reminder-days { color: var(--accent); background: var(--accent-glow); }
+
+  /* ===== KM HISTORY ===== */
+  .km-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .km-history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+  }
+  .km-history-date {
+    color: var(--text-dim);
+  }
+  .km-history-value {
+    font-family: 'Rubik', sans-serif;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .km-history-diff {
+    font-size: 11px;
+    color: var(--accent);
+  }
 </style>
 </head>
 <body>
@@ -365,6 +540,7 @@
   <button class="nav-tab" data-page="calendar" onclick="switchPage('calendar')"><span class="tab-icon">📅</span> יומן</button>
   <button class="nav-tab" data-page="students" onclick="switchPage('students')"><span class="tab-icon">👤</span> תלמידים</button>
   <button class="nav-tab" data-page="finance" onclick="switchPage('finance')"><span class="tab-icon">💰</span> כספים</button>
+  <button class="nav-tab" data-page="vehicle" onclick="switchPage('vehicle')"><span class="tab-icon">🚗</span> רכב</button>
 </nav>
 
 <main class="main">
@@ -441,6 +617,33 @@
     <div id="debtList"></div>
     <div class="section-title" style="margin-top:18px;">תשלומים אחרונים</div>
     <div id="paymentsList"></div>
+  </div>
+
+  <!-- ========== VEHICLE ========== -->
+  <div class="page" id="page-vehicle">
+    <div class="section-title">🚗 פרטי הרכב</div>
+    <div class="card vehicle-card" id="vehicleDetails">
+      <div id="vehicleInfo">
+        <div class="empty-state" style="padding:30px;">
+          <div style="font-size:40px;margin-bottom:10px;">🚗</div>
+          <div style="color:var(--text-dim);">לא הוגדר רכב עדיין</div>
+          <button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="openVehicleEditModal()">➕ הוסף רכב</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:20px;">📅 תזכורות</div>
+    <div id="vehicleReminders" class="reminders-list"></div>
+
+    <div class="section-title" style="margin-top:20px;">📊 מעקב קילומטראז'</div>
+    <div class="card" style="padding:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span style="color:var(--text-dim);font-size:13px;">קילומטראז' נוכחי</span>
+        <span style="font-size:24px;font-weight:700;color:var(--accent);" id="currentKm">—</span>
+      </div>
+      <button class="btn btn-outline btn-sm" style="width:100%;" onclick="openKmUpdateModal()">📝 עדכון קילומטראז'</button>
+      <div id="kmHistory" style="margin-top:16px;"></div>
+    </div>
   </div>
 
 </main>
@@ -579,6 +782,86 @@
     <div id="detailStudentContent"></div>
     <div style="display:flex;gap:8px;margin-top:16px;">
       <button type="button" class="btn btn-outline" style="flex:1" onclick="closeModal('modalStudentDetail')">סגירה</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: VEHICLE EDIT ===== -->
+<div class="modal-overlay" id="modalVehicleEdit">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">🚗 פרטי הרכב</div>
+    <div class="form-group">
+      <label class="form-label">מספר רכב *</label>
+      <input class="form-input" id="vehiclePlate" placeholder="12-345-67" dir="ltr">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">יצרן</label>
+        <input class="form-input" id="vehicleMake" placeholder="קיה">
+      </div>
+      <div class="form-group">
+        <label class="form-label">דגם</label>
+        <input class="form-input" id="vehicleModel" placeholder="נירו">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">שנת ייצור</label>
+        <input class="form-input" id="vehicleYear" type="number" placeholder="2022" dir="ltr">
+      </div>
+      <div class="form-group">
+        <label class="form-label">סוג תיבה</label>
+        <select class="form-input" id="vehicleTransmission">
+          <option value="אוטומט">אוטומט</option>
+          <option value="ידני">ידני</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">צבע</label>
+      <input class="form-input" id="vehicleColor" placeholder="לבן">
+    </div>
+    <div class="section-title" style="margin-top:16px;">📅 תזכורות</div>
+    <div class="form-group">
+      <label class="form-label">טסט שנתי</label>
+      <input class="form-input" id="vehicleTestDate" type="date" dir="ltr">
+    </div>
+    <div class="form-group">
+      <label class="form-label">ביטוח חובה</label>
+      <input class="form-input" id="vehicleInsuranceDate" type="date" dir="ltr">
+    </div>
+    <div class="form-group">
+      <label class="form-label">ביטוח מקיף</label>
+      <input class="form-input" id="vehicleFullInsuranceDate" type="date" dir="ltr">
+    </div>
+    <div class="form-group">
+      <label class="form-label">טיפול הבא</label>
+      <input class="form-input" id="vehicleServiceDate" type="date" dir="ltr">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button type="button" class="btn btn-primary" style="flex:2" onclick="saveVehicle()">💾 שמירה</button>
+      <button type="button" class="btn btn-outline" style="flex:1" onclick="closeModal('modalVehicleEdit')">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: KM UPDATE ===== -->
+<div class="modal-overlay" id="modalKmUpdate">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📊 עדכון קילומטראז'</div>
+    <div class="form-group">
+      <label class="form-label">קילומטראז' נוכחי</label>
+      <input class="form-input" id="newKmValue" type="number" placeholder="50000" dir="ltr">
+    </div>
+    <div class="form-group">
+      <label class="form-label">תאריך</label>
+      <input class="form-input" id="kmUpdateDate" type="date" dir="ltr">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button type="button" class="btn btn-primary" style="flex:2" onclick="saveKmUpdate()">💾 שמירה</button>
+      <button type="button" class="btn btn-outline" style="flex:1" onclick="closeModal('modalKmUpdate')">ביטול</button>
     </div>
   </div>
 </div>
@@ -1375,6 +1658,7 @@ function renderAll() {
   renderCalendar();
   renderStudents();
   renderFinance();
+  renderVehiclePage();
   updateHeader();
 }
 
@@ -1536,11 +1820,348 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape') document.querySelectorAll('.modal-overlay.show').forEach(o=>o.classList.remove('show'));
 });
 
+// ============================================================
+// VEHICLE MANAGEMENT
+// ============================================================
+let vehicleData;
+try {
+  vehicleData = JSON.parse(localStorage.getItem('drv_vehicle') || 'null');
+} catch(e) {
+  vehicleData = null;
+}
+
+let kmHistory;
+try {
+  kmHistory = JSON.parse(localStorage.getItem('drv_km_history') || '[]');
+} catch(e) {
+  kmHistory = [];
+}
+
+function saveVehicleData() {
+  try {
+    localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
+    localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
+  } catch(e) {
+    showToast('⚠️ שגיאה בשמירה');
+  }
+}
+
+function openVehicleEditModal() {
+  if (vehicleData) {
+    document.getElementById('vehiclePlate').value = vehicleData.plate || '';
+    document.getElementById('vehicleMake').value = vehicleData.make || '';
+    document.getElementById('vehicleModel').value = vehicleData.model || '';
+    document.getElementById('vehicleYear').value = vehicleData.year || '';
+    document.getElementById('vehicleTransmission').value = vehicleData.transmission || 'אוטומט';
+    document.getElementById('vehicleColor').value = vehicleData.color || '';
+    document.getElementById('vehicleTestDate').value = vehicleData.testDate || '';
+    document.getElementById('vehicleInsuranceDate').value = vehicleData.insuranceDate || '';
+    document.getElementById('vehicleFullInsuranceDate').value = vehicleData.fullInsuranceDate || '';
+    document.getElementById('vehicleServiceDate').value = vehicleData.serviceDate || '';
+  } else {
+    document.getElementById('vehiclePlate').value = '';
+    document.getElementById('vehicleMake').value = '';
+    document.getElementById('vehicleModel').value = '';
+    document.getElementById('vehicleYear').value = '';
+    document.getElementById('vehicleTransmission').value = 'אוטומט';
+    document.getElementById('vehicleColor').value = '';
+    document.getElementById('vehicleTestDate').value = '';
+    document.getElementById('vehicleInsuranceDate').value = '';
+    document.getElementById('vehicleFullInsuranceDate').value = '';
+    document.getElementById('vehicleServiceDate').value = '';
+  }
+  document.getElementById('modalVehicleEdit').classList.add('show');
+}
+
+function saveVehicle() {
+  const plate = document.getElementById('vehiclePlate').value.trim();
+  if (!plate) {
+    showToast('❌ יש להזין מספר רכב');
+    return;
+  }
+
+  vehicleData = {
+    plate: plate,
+    make: document.getElementById('vehicleMake').value.trim(),
+    model: document.getElementById('vehicleModel').value.trim(),
+    year: document.getElementById('vehicleYear').value.trim(),
+    transmission: document.getElementById('vehicleTransmission').value,
+    color: document.getElementById('vehicleColor').value.trim(),
+    testDate: document.getElementById('vehicleTestDate').value,
+    insuranceDate: document.getElementById('vehicleInsuranceDate').value,
+    fullInsuranceDate: document.getElementById('vehicleFullInsuranceDate').value,
+    serviceDate: document.getElementById('vehicleServiceDate').value
+  };
+
+  saveVehicleData();
+  closeModal('modalVehicleEdit');
+  renderVehiclePage();
+  showToast('✅ פרטי הרכב נשמרו');
+}
+
+function openKmUpdateModal() {
+  document.getElementById('newKmValue').value = '';
+  document.getElementById('kmUpdateDate').value = todayStr();
+  document.getElementById('modalKmUpdate').classList.add('show');
+}
+
+function saveKmUpdate() {
+  const km = parseInt(document.getElementById('newKmValue').value);
+  const date = document.getElementById('kmUpdateDate').value;
+
+  if (!km || km <= 0) {
+    showToast('❌ יש להזין קילומטראז\' תקין');
+    return;
+  }
+
+  if (!date) {
+    showToast('❌ יש לבחור תאריך');
+    return;
+  }
+
+  // Add to history
+  kmHistory.unshift({
+    km: km,
+    date: date,
+    timestamp: Date.now()
+  });
+
+  // Keep only last 20 entries
+  if (kmHistory.length > 20) {
+    kmHistory = kmHistory.slice(0, 20);
+  }
+
+  saveVehicleData();
+  closeModal('modalKmUpdate');
+  renderVehiclePage();
+  showToast('✅ הקילומטראז\' עודכן');
+}
+
+function renderVehiclePage() {
+  const infoEl = document.getElementById('vehicleInfo');
+  const remindersEl = document.getElementById('vehicleReminders');
+  const currentKmEl = document.getElementById('currentKm');
+  const kmHistoryEl = document.getElementById('kmHistory');
+
+  // Vehicle Info
+  if (!vehicleData) {
+    infoEl.innerHTML = `
+      <div class="empty-state" style="padding:30px;">
+        <div style="font-size:40px;margin-bottom:10px;">🚗</div>
+        <div style="color:var(--text-dim);">לא הוגדר רכב עדיין</div>
+        <button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="openVehicleEditModal()">➕ הוסף רכב</button>
+      </div>`;
+    remindersEl.innerHTML = '<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:20px;">הגדר רכב כדי לראות תזכורות</div>';
+    currentKmEl.textContent = '—';
+    kmHistoryEl.innerHTML = '';
+    return;
+  }
+
+  // Has vehicle data
+  const vehicleName = [vehicleData.make, vehicleData.model].filter(Boolean).join(' ') || 'הרכב שלי';
+  infoEl.innerHTML = `
+    <div class="vehicle-header">
+      <div class="vehicle-title-row">
+        <div class="vehicle-icon">🚗</div>
+        <div class="vehicle-main-info">
+          <h3>${escHtml(vehicleName)}</h3>
+          <div class="vehicle-plate">${escHtml(vehicleData.plate)}</div>
+        </div>
+      </div>
+      <button class="icon-btn" onclick="openVehicleEditModal()" title="עריכה">✏️</button>
+    </div>
+    <div class="vehicle-details-grid">
+      ${vehicleData.year ? `<div class="vehicle-detail-item"><span class="vehicle-detail-label">שנת ייצור</span><span class="vehicle-detail-value">${vehicleData.year}</span></div>` : ''}
+      ${vehicleData.transmission ? `<div class="vehicle-detail-item"><span class="vehicle-detail-label">סוג תיבה</span><span class="vehicle-detail-value">${vehicleData.transmission}</span></div>` : ''}
+      ${vehicleData.color ? `<div class="vehicle-detail-item"><span class="vehicle-detail-label">צבע</span><span class="vehicle-detail-value">${vehicleData.color}</span></div>` : ''}
+    </div>`;
+
+  // Reminders
+  const reminders = [];
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const reminderTypes = [
+    { key: 'testDate', label: 'טסט שנתי', icon: '🔧' },
+    { key: 'insuranceDate', label: 'ביטוח חובה', icon: '📋' },
+    { key: 'fullInsuranceDate', label: 'ביטוח מקיף', icon: '🛡️' },
+    { key: 'serviceDate', label: 'טיפול הבא', icon: '⚙️' }
+  ];
+
+  reminderTypes.forEach(type => {
+    if (vehicleData[type.key]) {
+      const dueDate = new Date(vehicleData[type.key] + 'T00:00:00');
+      const daysUntil = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+      reminders.push({
+        ...type,
+        date: vehicleData[type.key],
+        daysUntil: daysUntil
+      });
+    }
+  });
+
+  if (reminders.length === 0) {
+    remindersEl.innerHTML = '<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:20px;">לא הוגדרו תזכורות</div>';
+  } else {
+    remindersEl.innerHTML = reminders.map(r => {
+      let statusClass = 'ok';
+      let daysText = '';
+
+      if (r.daysUntil < 0) {
+        statusClass = 'danger';
+        daysText = `עבר לפני ${Math.abs(r.daysUntil)} ימים`;
+      } else if (r.daysUntil === 0) {
+        statusClass = 'danger';
+        daysText = 'היום!';
+      } else if (r.daysUntil <= 14) {
+        statusClass = 'warning';
+        daysText = `בעוד ${r.daysUntil} ימים`;
+      } else {
+        daysText = `בעוד ${r.daysUntil} ימים`;
+      }
+
+      const dateFormatted = new Date(r.date + 'T00:00:00').toLocaleDateString('he-IL');
+
+      return `
+        <div class="reminder-item ${statusClass}">
+          <div class="reminder-icon">${r.icon}</div>
+          <div class="reminder-content">
+            <div class="reminder-title">${r.label}</div>
+            <div class="reminder-date">${dateFormatted}</div>
+          </div>
+          <div class="reminder-days">${daysText}</div>
+        </div>`;
+    }).join('');
+  }
+
+  // KM Display
+  if (kmHistory.length > 0) {
+    const latestKm = kmHistory[0].km;
+    currentKmEl.textContent = latestKm.toLocaleString() + ' ק"מ';
+
+    // KM History
+    kmHistoryEl.innerHTML = `
+      <div class="section-title" style="margin-top:8px;font-size:12px;">היסטוריה</div>
+      <div class="km-history-list">
+        ${kmHistory.slice(0, 5).map((entry, i) => {
+          const dateFormatted = new Date(entry.date + 'T00:00:00').toLocaleDateString('he-IL');
+          let diffText = '';
+          if (i < kmHistory.length - 1) {
+            const diff = entry.km - kmHistory[i + 1].km;
+            if (diff > 0) diffText = `+${diff.toLocaleString()}`;
+          }
+          return `
+            <div class="km-history-item">
+              <span class="km-history-date">${dateFormatted}</span>
+              <span class="km-history-value">${entry.km.toLocaleString()} ק"מ ${diffText ? `<span class="km-history-diff">(${diffText})</span>` : ''}</span>
+            </div>`;
+        }).join('')}
+      </div>`;
+  } else {
+    currentKmEl.textContent = '—';
+    kmHistoryEl.innerHTML = '';
+  }
+}
+
+function checkVehicleReminders() {
+  if (!vehicleData) return;
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const reminderTypes = [
+    { key: 'testDate', label: 'טסט שנתי' },
+    { key: 'insuranceDate', label: 'ביטוח חובה' },
+    { key: 'fullInsuranceDate', label: 'ביטוח מקיף' },
+    { key: 'serviceDate', label: 'טיפול הבא' }
+  ];
+
+  const warnings = [];
+
+  reminderTypes.forEach(type => {
+    if (vehicleData[type.key]) {
+      const dueDate = new Date(vehicleData[type.key] + 'T00:00:00');
+      const daysUntil = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+
+      if (daysUntil <= 14 && daysUntil >= 0) {
+        warnings.push(`${type.label} בעוד ${daysUntil} ימים`);
+      } else if (daysUntil < 0) {
+        warnings.push(`${type.label} עבר!`);
+      }
+    }
+  });
+
+  if (warnings.length > 0) {
+    setTimeout(() => {
+      showToast('🚗 תזכורות רכב: ' + warnings[0]);
+    }, 2000);
+  }
+}
+
 // INIT
 if (checkLicense()) {
   renderAll();
   checkBackupReminder();
+  checkVehicleReminders();
 }
+
+// ============================================================
+// SERVICE WORKER REGISTRATION (PWA)
+// ============================================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js')
+      .then(registration => {
+        console.log('Service Worker registered successfully:', registration.scope);
+
+        // Check for updates
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New version available
+              if (confirm('גרסה חדשה זמינה! לרענן את האפליקציה?')) {
+                newWorker.postMessage('skipWaiting');
+                window.location.reload();
+              }
+            }
+          });
+        });
+      })
+      .catch(error => {
+        console.log('Service Worker registration failed:', error);
+      });
+  });
+}
+
+// Handle app install prompt (Android)
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+
+  // Show install button in header if not already installed
+  const installBtn = document.createElement('button');
+  installBtn.className = 'btn btn-sm btn-outline';
+  installBtn.style.cssText = 'position:fixed;bottom:70px;left:10px;z-index:999;font-size:11px;padding:6px 10px;';
+  installBtn.innerHTML = '📲 התקן אפליקציה';
+  installBtn.onclick = async () => {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      installBtn.remove();
+    }
+    deferredPrompt = null;
+  };
+  document.body.appendChild(installBtn);
+});
+
+// Hide install button if already installed
+window.addEventListener('appinstalled', () => {
+  console.log('App installed successfully');
+  const installBtn = document.querySelector('button[onclick*="deferredPrompt"]');
+  if (installBtn) installBtn.remove();
+});
 </script>
 </body>
 </html>
