@@ -1082,6 +1082,163 @@ function getInitials(n) { if(!n || !n.trim()) return '?'; return n.split(' ').ma
 function showToast(m) { const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
 function fmtMoney(n) { return n.toLocaleString('he-IL'); }
 function escHtml(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+// Sanitize string - remove potentially dangerous content and limit length
+function sanitizeString(str, maxLen = 500) {
+  if (typeof str !== 'string') return '';
+  // Trim and limit length
+  let clean = str.trim().slice(0, maxLen);
+  // Remove null bytes and control characters (except newlines/tabs)
+  clean = clean.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  return clean;
+}
+
+// Validate and sanitize ID (alphanumeric only)
+function sanitizeId(id) {
+  if (typeof id !== 'string') return '';
+  return id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 50);
+}
+
+// Validate phone number format
+function isValidPhone(phone) {
+  if (typeof phone !== 'string') return false;
+  const digits = phone.replace(/[\s\-()+"]/g, '').replace(/^\+/, '');
+  return digits.length >= 9 && digits.length <= 15 && /^\d+$/.test(digits);
+}
+
+// Validate date string format (YYYY-MM-DD)
+function isValidDateStr(dateStr) {
+  if (typeof dateStr !== 'string') return false;
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+}
+
+// Validate time string format (HH:MM)
+function isValidTimeStr(timeStr) {
+  if (typeof timeStr !== 'string') return false;
+  return /^\d{2}:\d{2}$/.test(timeStr);
+}
+
+// Validate and sanitize a student object
+function validateStudent(obj) {
+  if (!obj || typeof obj !== 'object') return null;
+
+  const id = sanitizeId(obj.id);
+  const name = sanitizeString(obj.name, 100);
+  const phone = sanitizeString(obj.phone, 20);
+
+  // Required fields must be valid
+  if (!id || !name || !isValidPhone(phone)) return null;
+
+  return {
+    id: id,
+    name: name,
+    phone: phone,
+    price: (typeof obj.price === 'number' && obj.price >= 0 && obj.price <= 10000) ? obj.price : 170,
+    notes: sanitizeString(obj.notes || '', 1000),
+    wantsExtraLessons: obj.wantsExtraLessons === true,
+    createdAt: isValidDateStr(obj.createdAt?.slice(0, 10)) ? obj.createdAt : new Date().toISOString()
+  };
+}
+
+// Validate and sanitize a lesson object
+function validateLesson(obj, validStudentIds) {
+  if (!obj || typeof obj !== 'object') return null;
+
+  const id = sanitizeId(obj.id);
+  const studentId = sanitizeId(obj.studentId);
+  const date = obj.date;
+  const time = obj.time;
+
+  // Required fields must be valid
+  if (!id || !studentId || !isValidDateStr(date) || !isValidTimeStr(time)) return null;
+  // Student must exist
+  if (!validStudentIds.has(studentId)) return null;
+
+  return {
+    id: id,
+    studentId: studentId,
+    studentName: sanitizeString(obj.studentName || '', 100),
+    date: date,
+    time: time,
+    duration: (typeof obj.duration === 'number' && obj.duration >= 15 && obj.duration <= 480) ? obj.duration : 45,
+    address: sanitizeString(obj.address || '', 200),
+    priceAtTime: (typeof obj.priceAtTime === 'number' && obj.priceAtTime >= 0 && obj.priceAtTime <= 10000) ? obj.priceAtTime : 0,
+    status: ['scheduled', 'completed', 'cancelled'].includes(obj.status) ? obj.status : 'scheduled',
+    createdAt: obj.createdAt || new Date().toISOString()
+  };
+}
+
+// Validate and sanitize a payment object
+function validatePayment(obj, validStudentIds) {
+  if (!obj || typeof obj !== 'object') return null;
+
+  const id = sanitizeId(obj.id);
+  const studentId = sanitizeId(obj.studentId);
+  const date = obj.date;
+  const amount = obj.amount;
+
+  // Required fields must be valid
+  if (!id || !studentId || !isValidDateStr(date)) return null;
+  if (typeof amount !== 'number' || amount <= 0 || amount > 100000) return null;
+  // Student must exist
+  if (!validStudentIds.has(studentId)) return null;
+
+  const validMethods = ['cash', 'transfer', 'bit', 'paybox', 'check', 'other'];
+
+  return {
+    id: id,
+    studentId: studentId,
+    studentName: sanitizeString(obj.studentName || '', 100),
+    date: date,
+    amount: amount,
+    method: validMethods.includes(obj.method) ? obj.method : 'cash',
+    note: sanitizeString(obj.note || '', 500),
+    createdAt: obj.createdAt || new Date().toISOString()
+  };
+}
+
+// Validate entire import data structure
+function validateImportData(data) {
+  if (!data || typeof data !== 'object') return null;
+  if (!Array.isArray(data.students) || !Array.isArray(data.lessons) || !Array.isArray(data.payments)) return null;
+
+  // Validate students first
+  const validStudents = [];
+  const validStudentIds = new Set();
+  for (const s of data.students) {
+    const validated = validateStudent(s);
+    if (validated) {
+      validStudents.push(validated);
+      validStudentIds.add(validated.id);
+    }
+  }
+
+  // Validate lessons (must reference valid students)
+  const validLessons = [];
+  for (const l of data.lessons) {
+    const validated = validateLesson(l, validStudentIds);
+    if (validated) validLessons.push(validated);
+  }
+
+  // Validate payments (must reference valid students)
+  const validPayments = [];
+  for (const p of data.payments) {
+    const validated = validatePayment(p, validStudentIds);
+    if (validated) validPayments.push(validated);
+  }
+
+  return {
+    students: validStudents,
+    lessons: validLessons,
+    payments: validPayments,
+    skipped: {
+      students: data.students.length - validStudents.length,
+      lessons: data.lessons.length - validLessons.length,
+      payments: data.payments.length - validPayments.length
+    }
+  };
+}
+
 function populateStudentSelect(selId, preselectId) {
   const sel = document.getElementById(selId);
   sel.innerHTML = '<option value="">— בחר תלמיד —</option>';
@@ -2039,14 +2196,47 @@ function importData() {
     const reader = new FileReader();
     reader.onload = ev => {
       try {
-        const data = JSON.parse(ev.target.result);
-        if(!data.students || !data.lessons || !data.payments) { showToast('⚠️ קובץ לא תקין'); return; }
-        if(!confirm(`לייבא ${data.students.length} תלמידים, ${data.lessons.length} שיעורים ו-${data.payments.length} תשלומים? הנתונים הנוכחיים יוחלפו.`)) return;
-        students = data.students;
-        lessons = data.lessons;
-        payments = data.payments;
-        saveData(); showToast('✅ נתונים יובאו בהצלחה'); renderAll();
-      } catch(err) { showToast('⚠️ שגיאה בקריאת הקובץ'); }
+        const rawData = JSON.parse(ev.target.result);
+        if(!rawData.students || !rawData.lessons || !rawData.payments) {
+          showToast('⚠️ קובץ לא תקין - חסרים שדות נדרשים');
+          return;
+        }
+
+        // Validate and sanitize all imported data
+        const validated = validateImportData(rawData);
+        if (!validated) {
+          showToast('⚠️ הנתונים בקובץ לא תקינים');
+          return;
+        }
+
+        // Build confirmation message with skip info
+        let confirmMsg = `לייבא ${validated.students.length} תלמידים, ${validated.lessons.length} שיעורים ו-${validated.payments.length} תשלומים?`;
+        const totalSkipped = validated.skipped.students + validated.skipped.lessons + validated.skipped.payments;
+        if (totalSkipped > 0) {
+          confirmMsg += `\n\n⚠️ ${totalSkipped} רשומות לא תקינות ידולגו:`;
+          if (validated.skipped.students > 0) confirmMsg += `\n- ${validated.skipped.students} תלמידים`;
+          if (validated.skipped.lessons > 0) confirmMsg += `\n- ${validated.skipped.lessons} שיעורים`;
+          if (validated.skipped.payments > 0) confirmMsg += `\n- ${validated.skipped.payments} תשלומים`;
+        }
+        confirmMsg += '\n\nהנתונים הנוכחיים יוחלפו.';
+
+        if(!confirm(confirmMsg)) return;
+
+        students = validated.students;
+        lessons = validated.lessons;
+        payments = validated.payments;
+
+        if(!saveData()) {
+          showToast('❌ שגיאה בשמירת הנתונים');
+          return;
+        }
+
+        showToast('✅ נתונים יובאו בהצלחה');
+        renderAll();
+      } catch(err) {
+        console.error('Import error:', err);
+        showToast('⚠️ שגיאה בקריאת הקובץ');
+      }
     };
     reader.readAsText(file);
   };
