@@ -1138,6 +1138,14 @@ function saveNewStudent() {
   if(!name||!phone){ showToast('⚠️ נא למלא שם וטלפון'); return; }
   const digits = phone.replace(/[\s\-()+"]/g,'').replace(/^\+/,'');
   if(digits.length < 9 || digits.length > 13 || !/^\d+$/.test(digits)){ showToast('⚠️ מספר טלפון לא תקין'); return; }
+  if(price < 0 || price > 1000){ showToast('⚠️ מחיר לא תקין (0-1000)'); return; }
+  // Check for duplicate phone (only when adding new student)
+  if(!editingStudentId) {
+    const existingByPhone = students.find(s => formatPhone(s.phone) === formatPhone(phone));
+    if(existingByPhone) {
+      if(!confirm(`כבר קיים תלמיד עם מספר זה: ${existingByPhone.name}\n\nלהוסיף בכל זאת?`)) return;
+    }
+  }
   if(editingStudentId) {
     const s = students.find(x=>x.id===editingStudentId);
     if(s) { s.name=name; s.phone=phone; s.price=price; s.notes=notes; s.lessonsDone=ld; s.wantsExtraLessons=wantsExtra;
@@ -1154,6 +1162,7 @@ function saveNewStudent() {
 }
 
 // ---- NEW LESSON ----
+let lessonModalInitialized = false;
 function openNewLessonModal(prefillDate, prefillTime) {
   populateStudentSelect('lessonStudent');
   const today = todayStr();
@@ -1165,10 +1174,14 @@ function openNewLessonModal(prefillDate, prefillTime) {
   document.getElementById('lessonAddress').value = '';
   document.getElementById('waPreviewSection').style.display = 'none';
   openModal('modalNewLesson');
-  ['lessonStudent','lessonDate','lessonTime','lessonDuration','lessonAddress'].forEach(id=>{
-    document.getElementById(id).onchange = updateWaPreview;
-    document.getElementById(id).oninput = updateWaPreview;
-  });
+  // Only bind event handlers once
+  if (!lessonModalInitialized) {
+    ['lessonStudent','lessonDate','lessonTime','lessonDuration','lessonAddress'].forEach(id=>{
+      document.getElementById(id).onchange = updateWaPreview;
+      document.getElementById(id).oninput = updateWaPreview;
+    });
+    lessonModalInitialized = true;
+  }
 }
 
 function buildWaMsg(sName,date,time,dur,addr) {
@@ -1771,8 +1784,8 @@ function checkBackupReminder() {
     // First time - set today and remind to backup
     if (students.length > 0) {
       setTimeout(() => {
-        if (confirm('💾 טרם ביצעת גיבוי לנתונים שלך.\n\nמומלץ לגבות את הנתונים באופן קבוע.\n\nלעבור לדף הכספים ולגבות עכשיו?')) {
-          showPage('finance');
+        if (confirm('💾 טרם ביצעת גיבוי לנתונים שלך.\n\nמומלץ לגבות את הנתונים באופן קבוע.\n\nלעבור לדף הראשי ולגבות עכשיו?')) {
+          switchPage('dashboard');
         }
       }, 2000);
     }
@@ -1785,8 +1798,8 @@ function checkBackupReminder() {
 
   if (daysSinceBackup >= 7) {
     setTimeout(() => {
-      if (confirm(`💾 עברו ${daysSinceBackup} ימים מאז הגיבוי האחרון.\n\nמומלץ לגבות את הנתונים באופן שבועי.\n\nלעבור לדף הכספים ולגבות עכשיו?`)) {
-        showPage('finance');
+      if (confirm(`💾 עברו ${daysSinceBackup} ימים מאז הגיבוי האחרון.\n\nמומלץ לגבות את הנתונים באופן שבועי.\n\nלעבור לדף הראשי ולגבות עכשיו?`)) {
+        switchPage('dashboard');
       }
     }, 2000);
   }
@@ -1916,6 +1929,12 @@ function saveKmUpdate() {
 
   if (!date) {
     showToast('❌ יש לבחור תאריך');
+    return;
+  }
+
+  // Validate KM is not lower than previous
+  if (kmHistory.length > 0 && km < kmHistory[0].km) {
+    showToast('❌ קילומטראז\' לא יכול להיות נמוך מהערך הקודם (' + kmHistory[0].km.toLocaleString() + ')');
     return;
   }
 
@@ -2112,8 +2131,6 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./service-worker.js')
       .then(registration => {
-        console.log('Service Worker registered successfully:', registration.scope);
-
         // Check for updates
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
@@ -2128,8 +2145,8 @@ if ('serviceWorker' in navigator) {
           });
         });
       })
-      .catch(error => {
-        console.log('Service Worker registration failed:', error);
+      .catch(() => {
+        // Service worker registration failed silently
       });
   });
 }
@@ -2142,6 +2159,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 
   // Show install button in header if not already installed
   const installBtn = document.createElement('button');
+  installBtn.id = 'pwaInstallBtn';
   installBtn.className = 'btn btn-sm btn-outline';
   installBtn.style.cssText = 'position:fixed;bottom:70px;left:10px;z-index:999;font-size:11px;padding:6px 10px;';
   installBtn.innerHTML = '📲 התקן אפליקציה';
@@ -2158,8 +2176,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 
 // Hide install button if already installed
 window.addEventListener('appinstalled', () => {
-  console.log('App installed successfully');
-  const installBtn = document.querySelector('button[onclick*="deferredPrompt"]');
+  const installBtn = document.getElementById('pwaInstallBtn');
   if (installBtn) installBtn.remove();
 });
 </script>
