@@ -678,7 +678,7 @@
         <input class="form-input" id="newStudentPrice" type="number" placeholder="170" dir="ltr">
       </div>
       <div class="form-group">
-        <label class="form-label">שיעורים שבוצעו</label>
+        <label class="form-label">שיעורים שבוצעו (כולל לפני האפליקציה)</label>
         <div class="lesson-count">
           <button type="button" class="count-btn" onclick="adjustCount('newStudentLessons',-1)">−</button>
           <span class="count-display" id="newStudentLessons">0</span>
@@ -1162,11 +1162,19 @@ function validateStudent(obj) {
   // Required fields must be valid
   if (!id || !name || !isValidPhone(phone)) return null;
 
+  // Support legacy lessonsDone field and new initialCompletedLessons
+  const legacyDone = (typeof obj.lessonsDone === 'number') ? obj.lessonsDone : 0;
+  const initialDoneRaw = (typeof obj.initialCompletedLessons === 'number') ? obj.initialCompletedLessons : legacyDone;
+  const initialCompletedLessons = (Number.isFinite(initialDoneRaw) && initialDoneRaw >= 0 && initialDoneRaw <= 1000)
+    ? Math.floor(initialDoneRaw)
+    : 0;
+
   return {
     id: id,
     name: name,
     phone: phone,
     price: (typeof obj.price === 'number' && obj.price >= 0 && obj.price <= 10000) ? obj.price : 170,
+    initialCompletedLessons: initialCompletedLessons,
     notes: sanitizeString(obj.notes || '', 1000),
     wantsExtraLessons: obj.wantsExtraLessons === true,
     createdAt: isValidDateStr(obj.createdAt?.slice(0, 10)) ? obj.createdAt : new Date().toISOString()
@@ -1187,6 +1195,13 @@ function validateLesson(obj, validStudentIds) {
   // Student must exist
   if (!validStudentIds.has(studentId)) return null;
 
+  // Validate and fix status - don't allow completed/no-show for future lessons
+  let status = ['scheduled', 'completed', 'cancelled', 'no-show'].includes(obj.status) ? obj.status : 'scheduled';
+  const realToday = getRealTodayStr();
+  if ((status === 'completed' || status === 'no-show') && date > realToday) {
+    status = 'scheduled'; // Future lesson can't be completed/no-show
+  }
+
   return {
     id: id,
     studentId: studentId,
@@ -1197,7 +1212,7 @@ function validateLesson(obj, validStudentIds) {
     address: sanitizeString(obj.address || '', 200),
     // Don't default priceAtTime to 0 - leave undefined so it falls back to student price
     priceAtTime: (typeof obj.priceAtTime === 'number' && obj.priceAtTime >= 0 && obj.priceAtTime <= 10000) ? obj.priceAtTime : undefined,
-    status: ['scheduled', 'completed', 'cancelled', 'no-show'].includes(obj.status) ? obj.status : 'scheduled',
+    status: status,
     createdAt: obj.createdAt || new Date().toISOString()
   };
 }
@@ -1232,6 +1247,62 @@ function validatePayment(obj, validStudentIds) {
   };
 }
 
+// Validate and sanitize vehicle data
+function validateVehicleData(obj) {
+  if (obj === null) return null;
+  if (!obj || typeof obj !== 'object') return null;
+
+  const plate = sanitizeString(obj.plate || '', 20);
+  if (!plate) return null;
+
+  let year = sanitizeString(obj.year || '', 10);
+  if (year && !/^\d{4}$/.test(year)) year = '';
+
+  const transmissionRaw = sanitizeString(obj.transmission || '', 20);
+  const transmission = (transmissionRaw === 'ידני') ? 'ידני' : 'אוטומט';
+
+  const fixDate = (d) => (isValidDateStr(d) ? d : '');
+
+  return {
+    plate: plate,
+    make: sanitizeString(obj.make || '', 50),
+    model: sanitizeString(obj.model || '', 50),
+    year: year,
+    transmission: transmission,
+    color: sanitizeString(obj.color || '', 30),
+    testDate: fixDate(obj.testDate),
+    insuranceDate: fixDate(obj.insuranceDate),
+    fullInsuranceDate: fixDate(obj.fullInsuranceDate),
+    serviceDate: fixDate(obj.serviceDate)
+  };
+}
+
+// Validate and sanitize km history array
+function validateKmHistory(arr) {
+  if (!Array.isArray(arr)) return [];
+
+  const out = [];
+  for (const it of arr) {
+    if (!it || typeof it !== 'object') continue;
+
+    const km = Number(it.km);
+    const date = it.date;
+    const ts = Number(it.timestamp);
+
+    if (!Number.isFinite(km) || km <= 0 || km > 99999999) continue;
+    if (!isValidDateStr(date)) continue;
+
+    out.push({
+      km: Math.floor(km),
+      date: date,
+      timestamp: Number.isFinite(ts) ? ts : Date.now()
+    });
+  }
+
+  out.sort((a,b) => (b.timestamp - a.timestamp));
+  return out.slice(0, 20);
+}
+
 // Validate entire import data structure
 function validateImportData(data) {
   if (!data || typeof data !== 'object') return null;
@@ -1262,14 +1333,30 @@ function validateImportData(data) {
     if (validated) validPayments.push(validated);
   }
 
+  // Validate vehicle and km data if present
+  const hasVehicle = Object.prototype.hasOwnProperty.call(data, 'vehicleData');
+  const hasKm = Object.prototype.hasOwnProperty.call(data, 'kmHistory');
+
+  const validVehicleData = hasVehicle ? validateVehicleData(data.vehicleData) : undefined;
+  const validKmHistory = hasKm ? validateKmHistory(data.kmHistory) : undefined;
+
+  const vehicleSkipped = (hasVehicle && data.vehicleData && !validVehicleData) ? 1 : 0;
+  const kmSkipped = hasKm
+    ? (Array.isArray(data.kmHistory) ? (data.kmHistory.length - (validKmHistory ? validKmHistory.length : 0)) : 1)
+    : 0;
+
   return {
     students: validStudents,
     lessons: validLessons,
     payments: validPayments,
+    vehicleData: validVehicleData,
+    kmHistory: validKmHistory,
     skipped: {
       students: data.students.length - validStudents.length,
       lessons: data.lessons.length - validLessons.length,
-      payments: data.payments.length - validPayments.length
+      payments: data.payments.length - validPayments.length,
+      vehicle: vehicleSkipped,
+      km: kmSkipped
     }
   };
 }
@@ -1331,9 +1418,14 @@ function getStudentBalance(s) {
 
 // Get count of completed lessons for student
 function getCompletedLessonsCount(s) {
-  // ONLY count lessons explicitly marked as completed
-  // Status is the source of truth - past date alone does NOT count
-  return lessons.filter(l => l.studentId === s.id && l.status === 'completed').length;
+  // Base count from before the app (initialCompletedLessons)
+  const base = (s && typeof s.initialCompletedLessons === 'number' && s.initialCompletedLessons > 0)
+    ? s.initialCompletedLessons
+    : 0;
+
+  // Plus lessons marked as completed in the app
+  const doneInApp = lessons.filter(l => l.studentId === s.id && l.status === 'completed').length;
+  return base + doneInApp;
 }
 
 // ============================================================
@@ -1437,7 +1529,9 @@ function saveNewStudent() {
   if(!name||!phone){ showToast('⚠️ נא למלא שם וטלפון'); return; }
   const digits = phone.replace(/[\s\-()+"]/g,'').replace(/^\+/,'');
   if(digits.length < 9 || digits.length > 13 || !/^\d+$/.test(digits)){ showToast('⚠️ מספר טלפון לא תקין'); return; }
-  if(price < 0 || price > 1000){ showToast('⚠️ מחיר לא תקין (0-1000)'); return; }
+  if(price < 0 || price > 10000){ showToast('⚠️ מחיר לא תקין (0-10000)'); return; }
+  // Calculate desired completed count (limited to 0-1000)
+  const desiredCompleted = (Number.isFinite(ld) && ld >= 0) ? Math.min(ld, 1000) : 0;
   // Check for duplicate phone (only when adding new student)
   if(!editingStudentId) {
     const existingByPhone = students.find(s => formatPhone(s.phone) === formatPhone(phone));
@@ -1449,7 +1543,9 @@ function saveNewStudent() {
     const s = students.find(x=>x.id===editingStudentId);
     if(s) {
       s.name=name; s.phone=phone; s.price=price; s.notes=notes; s.wantsExtraLessons=wantsExtra;
-      // Note: lessonsDone is now calculated dynamically, not stored
+      // Calculate initialCompletedLessons so total matches desired
+      const doneInApp = lessons.filter(l => l.studentId === editingStudentId && l.status === 'completed').length;
+      s.initialCompletedLessons = Math.max(0, desiredCompleted - doneInApp);
       // Update cached name in lessons/payments
       lessons.filter(l=>l.studentId===editingStudentId).forEach(l=>l.studentName=name);
       payments.filter(p=>p.studentId===editingStudentId).forEach(p=>p.studentName=name);
@@ -1460,7 +1556,7 @@ function saveNewStudent() {
     renderAll();
     editingStudentId = null;
   } else {
-    students.push({ id:genId(), name, phone, price, notes, wantsExtraLessons:wantsExtra, createdAt:new Date().toISOString() });
+    students.push({ id:genId(), name, phone, price, notes, initialCompletedLessons:desiredCompleted, wantsExtraLessons:wantsExtra, createdAt:new Date().toISOString() });
     if(!saveData()) return; // Stop if save failed
     closeModal('modalNewStudent');
     showToast('✅ תלמיד נוסף');
@@ -1653,8 +1749,16 @@ function saveLesson(withWa) {
       lesson.time = t;
       lesson.duration = parseInt(dur);
       lesson.address = addr;
-      // Update status from selector
-      lesson.status = document.getElementById('lessonStatus').value;
+      // Update status from selector - block completed for future lessons
+      const newStatus = document.getElementById('lessonStatus').value;
+      if (newStatus === 'completed') {
+        const lessonDt = new Date(`${d}T${t}:00`);
+        if (lessonDt > now) {
+          showToast('⚠️ לא ניתן לסמן שיעור עתידי כ״בוצע״');
+          return;
+        }
+      }
+      lesson.status = newStatus;
     }
     if(!saveData()) return; // Stop if save failed
     closeModal('modalNewLesson');
@@ -1851,7 +1955,7 @@ function openStudentDetail(sid) {
 
   let h = `
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;">
-      <div class="student-avatar" style="width:50px;height:50px;font-size:20px;">${getInitials(s.name)}</div>
+      <div class="student-avatar" style="width:50px;height:50px;font-size:20px;">${escHtml(getInitials(s.name))}</div>
       <div>
         <div style="font-size:17px;font-weight:700;">${escHtml(s.name)}</div>
         <div style="font-size:13px;color:var(--text-dim);direction:ltr;text-align:right;">${escHtml(s.phone)}</div>
@@ -1964,8 +2068,10 @@ function renderCalendar() {
   document.getElementById('calBody').innerHTML = body;
 
   // Place events - group by day to handle overlaps
+  // Don't show cancelled or no-show lessons
   const eventsByDay = {};
   lessons.forEach(l => {
+    if (l.status === 'cancelled' || l.status === 'no-show') return;
     const [lh,lm] = l.time.split(':').map(Number);
     if(lh < START_HOUR || lh >= END_HOUR) return; // Now uses dynamic range
     const dayIdx = days.findIndex(d => dateStr(d) === l.date);
@@ -2176,8 +2282,22 @@ function renderDashboard() {
   debtEl.textContent = fmtMoney(totalDebt);
   debtEl.className = totalDebt > 0 ? 'stat-number red' : 'stat-number';
 
-  // Upcoming
-  const upcoming = lessons.filter(l=>l.date>=td).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).slice(0,5);
+  // Upcoming - only scheduled lessons, and for today only future times
+  const realToday = getRealTodayStr();
+  const now2 = new Date();
+  const nowMin = now2.getHours() * 60 + now2.getMinutes();
+
+  const upcoming = lessons
+    .filter(l => l.status === 'scheduled')
+    .filter(l => {
+      if (l.date > realToday) return true;
+      if (l.date < realToday) return false;
+      // Today - only future times
+      const [hh, mm] = l.time.split(':').map(Number);
+      return (hh * 60 + mm) >= nowMin;
+    })
+    .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))
+    .slice(0,5);
   const uc = document.getElementById('upcomingLessons');
   if(upcoming.length===0) {
     uc.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-text">אין שיעורים קרובים</div><div class="empty-sub">לחץ למטה כדי לקבוע שיעור</div></div>';
@@ -2255,17 +2375,30 @@ function renderStudents() {
 
 // ---- EXPORT / IMPORT ----
 function exportData() {
-  // Include vehicle and km data in backup
   const data = { students, lessons, payments, vehicleData, kmHistory, exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
+
   const a = document.createElement('a');
   a.href = url;
-  a.download = `nahag-baseder-backup-${getRealTodayStr()}.json`; // Use real date
+  a.download = `nahag-baseder-backup-${getRealTodayStr()}.json`;
   a.click();
+
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  localStorage.setItem('drv_last_backup', getRealTodayStr()); // Use real date
-  showToast('📥 גיבוי הורד בהצלחה');
+
+  localStorage.setItem('drv_last_backup_attempt', new Date().toISOString());
+
+  setTimeout(() => {
+    const ok = confirm(
+      '📥 האם הקובץ ירד ונשמר במכשיר?\n\nטיפ: באייפון חפש באפליקציית ״קבצים״ > ״הורדות״.'
+    );
+    if (ok) {
+      localStorage.setItem('drv_last_backup', getRealTodayStr());
+      showToast('✅ גיבוי אושר ונשמר');
+    } else {
+      showToast('⚠️ גיבוי לא אושר - מומלץ לוודא שהקובץ נשמר ולנסות שוב');
+    }
+  }, 400);
 }
 
 function checkBackupReminder() {
@@ -2354,13 +2487,13 @@ function importData() {
           document.body.style.paddingTop = '';
         }
 
-        // Restore vehicle data if present in backup
-        if (rawData.vehicleData !== undefined) {
-          vehicleData = rawData.vehicleData;
+        // Restore vehicle data if present in backup (use validated data)
+        if (validated.vehicleData !== undefined) {
+          vehicleData = validated.vehicleData; // can be null
           localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
         }
-        if (rawData.kmHistory !== undefined && Array.isArray(rawData.kmHistory)) {
-          kmHistory = rawData.kmHistory;
+        if (validated.kmHistory !== undefined) {
+          kmHistory = validated.kmHistory; // always an array
           localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
         }
 
@@ -2449,26 +2582,31 @@ function openVehicleEditModal() {
 }
 
 function saveVehicle() {
-  const plate = document.getElementById('vehiclePlate').value.trim();
-  if (!plate) {
+  const plateRaw = document.getElementById('vehiclePlate').value.trim();
+  if (!plateRaw) {
     showToast('❌ יש להזין מספר רכב');
     return;
   }
 
+  const transmissionRaw = document.getElementById('vehicleTransmission').value;
+  const transmission = (transmissionRaw === 'ידני') ? 'ידני' : 'אוטומט';
+
+  const fixDate = (d) => (isValidDateStr(d) ? d : '');
+
   vehicleData = {
-    plate: plate,
-    make: document.getElementById('vehicleMake').value.trim(),
-    model: document.getElementById('vehicleModel').value.trim(),
-    year: document.getElementById('vehicleYear').value.trim(),
-    transmission: document.getElementById('vehicleTransmission').value,
-    color: document.getElementById('vehicleColor').value.trim(),
-    testDate: document.getElementById('vehicleTestDate').value,
-    insuranceDate: document.getElementById('vehicleInsuranceDate').value,
-    fullInsuranceDate: document.getElementById('vehicleFullInsuranceDate').value,
-    serviceDate: document.getElementById('vehicleServiceDate').value
+    plate: sanitizeString(plateRaw, 20),
+    make: sanitizeString(document.getElementById('vehicleMake').value.trim(), 50),
+    model: sanitizeString(document.getElementById('vehicleModel').value.trim(), 50),
+    year: sanitizeString(document.getElementById('vehicleYear').value.trim(), 10),
+    transmission: transmission,
+    color: sanitizeString(document.getElementById('vehicleColor').value.trim(), 30),
+    testDate: fixDate(document.getElementById('vehicleTestDate').value),
+    insuranceDate: fixDate(document.getElementById('vehicleInsuranceDate').value),
+    fullInsuranceDate: fixDate(document.getElementById('vehicleFullInsuranceDate').value),
+    serviceDate: fixDate(document.getElementById('vehicleServiceDate').value)
   };
 
-  saveVehicleData();
+  if (!saveVehicleData()) return;
   closeModal('modalVehicleEdit');
   renderVehiclePage();
   showToast('✅ פרטי הרכב נשמרו');
@@ -2476,7 +2614,7 @@ function saveVehicle() {
 
 function openKmUpdateModal() {
   document.getElementById('newKmValue').value = '';
-  document.getElementById('kmUpdateDate').value = todayStr();
+  document.getElementById('kmUpdateDate').value = getRealTodayStr();
   document.getElementById('modalKmUpdate').classList.add('show');
 }
 
@@ -2512,7 +2650,7 @@ function saveKmUpdate() {
     kmHistory = kmHistory.slice(0, 20);
   }
 
-  saveVehicleData();
+  if (!saveVehicleData()) return;
   closeModal('modalKmUpdate');
   renderVehiclePage();
   showToast('✅ הקילומטראז\' עודכן');
@@ -2552,9 +2690,9 @@ function renderVehiclePage() {
       <button class="icon-btn" onclick="openVehicleEditModal()" title="עריכה">✏️</button>
     </div>
     <div class="vehicle-details-grid">
-      ${vehicleData.year ? `<div class="vehicle-detail-item"><span class="vehicle-detail-label">שנת ייצור</span><span class="vehicle-detail-value">${vehicleData.year}</span></div>` : ''}
-      ${vehicleData.transmission ? `<div class="vehicle-detail-item"><span class="vehicle-detail-label">סוג תיבה</span><span class="vehicle-detail-value">${vehicleData.transmission}</span></div>` : ''}
-      ${vehicleData.color ? `<div class="vehicle-detail-item"><span class="vehicle-detail-label">צבע</span><span class="vehicle-detail-value">${vehicleData.color}</span></div>` : ''}
+      ${vehicleData.year ? `<div class="vehicle-detail-item"><span class="vehicle-detail-label">שנת ייצור</span><span class="vehicle-detail-value">${escHtml(String(vehicleData.year))}</span></div>` : ''}
+      ${vehicleData.transmission ? `<div class="vehicle-detail-item"><span class="vehicle-detail-label">סוג תיבה</span><span class="vehicle-detail-value">${escHtml(String(vehicleData.transmission))}</span></div>` : ''}
+      ${vehicleData.color ? `<div class="vehicle-detail-item"><span class="vehicle-detail-label">צבע</span><span class="vehicle-detail-value">${escHtml(String(vehicleData.color))}</span></div>` : ''}
     </div>`;
 
   // Reminders
