@@ -727,6 +727,15 @@
         </select>
       </div>
     </div>
+    <div class="form-group" id="lessonStatusGroup" style="display:none;">
+      <label class="form-label">סטטוס שיעור</label>
+      <select class="form-select" id="lessonStatus">
+        <option value="scheduled">📅 מתוכנן</option>
+        <option value="completed">✅ בוצע</option>
+        <option value="cancelled">❌ בוטל</option>
+        <option value="no-show">🚫 לא הגיע</option>
+      </select>
+    </div>
     <div class="form-group">
       <label class="form-label">כתובת איסוף</label>
       <input class="form-input" id="lessonAddress" placeholder="רחוב, עיר">
@@ -1029,18 +1038,42 @@ try {
 } catch(e) {
   dataCorrupted = true;
   students = []; lessons = []; payments = [];
-  // Show error after page loads
+  // Show persistent warning after page loads
   setTimeout(() => {
-    alert('⚠️ שגיאה בטעינת נתונים!\n\nהנתונים נפגמו או לא תקינים.\nנא לייבא גיבוי אם יש לך.');
+    showCorruptedDataBanner();
   }, 500);
 }
 
+// Show persistent warning banner for corrupted data
+function showCorruptedDataBanner() {
+  if (!dataCorrupted) return;
+  const banner = document.createElement('div');
+  banner.id = 'corruptedBanner';
+  banner.innerHTML = `
+    <div style="background:linear-gradient(135deg,#dc2626,#b91c1c);color:white;padding:16px 20px;text-align:center;position:fixed;top:0;left:0;right:0;z-index:9999;font-size:14px;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+      <div style="font-weight:700;margin-bottom:8px;">⚠️ נתונים פגומים - מצב קריאה בלבד</div>
+      <div style="font-size:12px;opacity:0.9;margin-bottom:12px;">לא ניתן לבצע שינויים. נא לייבא גיבוי לשחזור הנתונים.</div>
+      <button onclick="importData()" style="background:white;color:#dc2626;border:none;padding:8px 20px;border-radius:8px;font-weight:600;cursor:pointer;">📥 ייבוא גיבוי</button>
+    </div>
+  `;
+  document.body.insertBefore(banner, document.body.firstChild);
+  // Add padding to body to prevent content from being hidden under banner
+  document.body.style.paddingTop = '100px';
+}
+
 // Returns true if save succeeded, false if failed
+// BLOCKS all saves when data is corrupted
 function saveData() {
+  if (dataCorrupted) {
+    showToast('❌ מצב קריאה בלבד - לא ניתן לשמור. נא לייבא גיבוי.');
+    return false;
+  }
   try {
     localStorage.setItem('drv_students', JSON.stringify(students));
     localStorage.setItem('drv_lessons', JSON.stringify(lessons));
     localStorage.setItem('drv_payments', JSON.stringify(payments));
+    // Invalidate balance cache on any data change
+    invalidateBalanceCache();
     return true;
   } catch(e) {
     showToast('❌ שגיאה בשמירה! הנתונים לא נשמרו');
@@ -1162,8 +1195,9 @@ function validateLesson(obj, validStudentIds) {
     time: time,
     duration: (typeof obj.duration === 'number' && obj.duration >= 15 && obj.duration <= 480) ? obj.duration : 45,
     address: sanitizeString(obj.address || '', 200),
-    priceAtTime: (typeof obj.priceAtTime === 'number' && obj.priceAtTime >= 0 && obj.priceAtTime <= 10000) ? obj.priceAtTime : 0,
-    status: ['scheduled', 'completed', 'cancelled'].includes(obj.status) ? obj.status : 'scheduled',
+    // Don't default priceAtTime to 0 - leave undefined so it falls back to student price
+    priceAtTime: (typeof obj.priceAtTime === 'number' && obj.priceAtTime >= 0 && obj.priceAtTime <= 10000) ? obj.priceAtTime : undefined,
+    status: ['scheduled', 'completed', 'cancelled', 'no-show'].includes(obj.status) ? obj.status : 'scheduled',
     createdAt: obj.createdAt || new Date().toISOString()
   };
 }
@@ -1183,7 +1217,8 @@ function validatePayment(obj, validStudentIds) {
   // Student must exist
   if (!validStudentIds.has(studentId)) return null;
 
-  const validMethods = ['cash', 'transfer', 'bit', 'paybox', 'check', 'other'];
+  // Accept both Hebrew (app default) and English (legacy) payment methods
+  const validMethods = ['מזומן', 'ביט', 'פייבוקס', 'העברה', 'אשראי', 'cash', 'transfer', 'bit', 'paybox', 'check', 'credit', 'other'];
 
   return {
     id: id,
@@ -1191,7 +1226,7 @@ function validatePayment(obj, validStudentIds) {
     studentName: sanitizeString(obj.studentName || '', 100),
     date: date,
     amount: amount,
-    method: validMethods.includes(obj.method) ? obj.method : 'cash',
+    method: validMethods.includes(obj.method) ? obj.method : 'מזומן',
     note: sanitizeString(obj.note || '', 500),
     createdAt: obj.createdAt || new Date().toISOString()
   };
@@ -1245,27 +1280,62 @@ function populateStudentSelect(selId, preselectId) {
   students.forEach(s=>{ sel.innerHTML += `<option value="${s.id}" ${s.id===preselectId?'selected':''}>${escHtml(s.name)}</option>`; });
 }
 
+// ============================================================
+// BALANCE CACHE - Performance optimization
+// ============================================================
+let balanceCache = {};
+let balanceCacheDate = null; // Cache invalidates when date changes
+
+function invalidateBalanceCache() {
+  balanceCache = {};
+}
+
+function getBalanceCacheKey(studentId) {
+  const today = getRealTodayStr();
+  // Invalidate cache if date changed
+  if (balanceCacheDate !== today) {
+    balanceCache = {};
+    balanceCacheDate = today;
+  }
+  return studentId;
+}
+
 // Student balance = total paid - sum of completed lesson prices
 // Only counts lessons that actually happened (status = 'completed' or past date)
+// Uses cache for performance with many students
 function getStudentBalance(s) {
+  const cacheKey = getBalanceCacheKey(s.id);
+  if (balanceCache.hasOwnProperty(cacheKey)) {
+    return balanceCache[cacheKey];
+  }
+
   const totalPaid = payments.filter(p=>p.studentId===s.id).reduce((sum,p)=>sum+p.amount,0);
 
-  // Calculate owed based on completed lessons (past or marked complete)
+  // Calculate owed based on completed lessons only
+  // Cancelled or no-show lessons are NOT charged
   const today = getRealTodayStr(); // Use real date, not working date
   const studentLessons = lessons.filter(l => l.studentId === s.id);
 
   let totalOwed = 0;
   studentLessons.forEach(l => {
-    // Lesson counts as "done" if it's in the past OR marked as completed
-    const isPast = l.date < today;
+    // Skip cancelled or no-show lessons - they are not charged
+    if (l.status === 'cancelled' || l.status === 'no-show') return;
+
+    // Lesson counts as "done" if:
+    // 1. Explicitly marked as completed, OR
+    // 2. Status is 'scheduled' (or missing) AND date is in the past
     const isCompleted = l.status === 'completed';
-    if (isPast || isCompleted) {
+    const isPastScheduled = (l.status === 'scheduled' || !l.status) && l.date < today;
+
+    if (isCompleted || isPastScheduled) {
       // Use stored price if available, otherwise use current student price
-      totalOwed += (l.priceAtTime !== undefined) ? l.priceAtTime : (s.price || 0);
+      totalOwed += (l.priceAtTime !== undefined && l.priceAtTime !== null) ? l.priceAtTime : (s.price || 0);
     }
   });
 
-  return totalPaid - totalOwed; // negative = owes money
+  const balance = totalPaid - totalOwed; // negative = owes money
+  balanceCache[cacheKey] = balance;
+  return balance;
 }
 
 // Get count of completed lessons for student
@@ -1273,21 +1343,38 @@ function getCompletedLessonsCount(s) {
   const today = getRealTodayStr();
   return lessons.filter(l => {
     if (l.studentId !== s.id) return false;
-    const isPast = l.date < today;
+    // Skip cancelled or no-show lessons
+    if (l.status === 'cancelled' || l.status === 'no-show') return false;
+    // Count as completed if explicitly marked OR scheduled and past
     const isCompleted = l.status === 'completed';
-    return isPast || isCompleted;
+    const isPastScheduled = (l.status === 'scheduled' || !l.status) && l.date < today;
+    return isCompleted || isPastScheduled;
   }).length;
 }
 
 // ============================================================
 // NAV
 // ============================================================
+let currentPage = 'dashboard';
 function switchPage(page) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+page).classList.add('active');
   document.querySelector(`[data-page="${page}"]`).classList.add('active');
-  renderAll();
+  currentPage = page;
+  renderPage(page); // Only render active page for performance
+  updateHeader();
+}
+
+// Render only the specified page (performance optimization)
+function renderPage(page) {
+  switch(page) {
+    case 'dashboard': renderDashboard(); break;
+    case 'calendar': renderCalendar(); break;
+    case 'students': renderStudents(); break;
+    case 'finance': renderFinance(); break;
+    case 'vehicle': renderVehiclePage(); break;
+  }
 }
 
 // ============================================================
@@ -1405,6 +1492,8 @@ function openNewLessonModal(prefillDate, prefillTime, editLessonId) {
   editingLessonId = editLessonId || null;
   const today = todayStr();
   const dateInput = document.getElementById('lessonDate');
+  const statusGroup = document.getElementById('lessonStatusGroup');
+  const statusSelect = document.getElementById('lessonStatus');
 
   if (editingLessonId) {
     // Edit mode
@@ -1418,6 +1507,9 @@ function openNewLessonModal(prefillDate, prefillTime, editLessonId) {
     document.getElementById('lessonTime').value = lesson.time;
     document.getElementById('lessonDuration').value = lesson.duration || 40;
     document.getElementById('lessonAddress').value = lesson.address || '';
+    // Show and populate status selector
+    statusGroup.style.display = 'block';
+    statusSelect.value = lesson.status || 'scheduled';
   } else {
     // New lesson mode
     document.getElementById('lessonModalTitle').textContent = '📅 קביעת שיעור';
@@ -1427,6 +1519,9 @@ function openNewLessonModal(prefillDate, prefillTime, editLessonId) {
     document.getElementById('lessonTime').value = prefillTime || '';
     document.getElementById('lessonDuration').value = '40';
     document.getElementById('lessonAddress').value = '';
+    // Hide status selector for new lessons (always starts as scheduled)
+    statusGroup.style.display = 'none';
+    statusSelect.value = 'scheduled';
   }
 
   document.getElementById('waPreviewSection').style.display = 'none';
@@ -1556,13 +1651,18 @@ function saveLesson(withWa) {
     // Update existing lesson
     const lesson = lessons.find(l => l.id === editingLessonId);
     if(lesson) {
+      // If student changed, update priceAtTime to new student's price
+      if (lesson.studentId !== sid) {
+        lesson.priceAtTime = s.price || 0;
+      }
       lesson.studentId = sid;
       lesson.studentName = s.name;
       lesson.date = d;
       lesson.time = t;
       lesson.duration = parseInt(dur);
       lesson.address = addr;
-      // Keep original priceAtTime - don't update it
+      // Update status from selector
+      lesson.status = document.getElementById('lessonStatus').value;
     }
     if(!saveData()) return; // Stop if save failed
     closeModal('modalNewLesson');
@@ -1663,7 +1763,7 @@ function openPaymentModal(prefillStudentId) {
   populateStudentSelect('payStudent', prefillStudentId);
   document.getElementById('payAmount').value = '';
   document.getElementById('payMethod').value = 'מזומן';
-  document.getElementById('payDate').value = todayStr();
+  document.getElementById('payDate').value = getRealTodayStr(); // Use real date, not working day
   document.getElementById('payNote').value = '';
   if(prefillStudentId) {
     const s=students.find(x=>x.id===prefillStudentId);
@@ -1825,13 +1925,25 @@ function calNext() { calWeekStart = new Date(calWeekStart); calWeekStart.setDate
 function calToday() { calWeekStart = getWeekStart(new Date()); renderCalendar(); }
 
 function renderCalendar() {
-  const START_HOUR = 7, END_HOUR = 21;
+  const DEFAULT_START = 7, DEFAULT_END = 21;
   const days = [];
   for(let i=0;i<7;i++) {
     const d = new Date(calWeekStart);
     d.setDate(d.getDate()+i);
     days.push(d);
   }
+
+  // Find min/max hours from lessons in this week
+  let minHour = DEFAULT_START, maxHour = DEFAULT_END;
+  const weekDates = days.map(d => dateStr(d));
+  lessons.forEach(l => {
+    if (!weekDates.includes(l.date)) return;
+    const [lh] = l.time.split(':').map(Number);
+    const endHour = Math.ceil((lh * 60 + (l.duration || 40)) / 60);
+    if (lh < minHour) minHour = lh;
+    if (endHour > maxHour) maxHour = Math.min(endHour, 24);
+  });
+  const START_HOUR = minHour, END_HOUR = maxHour;
 
   // Title
   const m1 = MONTHS_HEB[days[0].getMonth()], m2 = MONTHS_HEB[days[6].getMonth()];
@@ -1847,7 +1959,7 @@ function renderCalendar() {
   });
   document.getElementById('calWeekHeader').innerHTML = hdr;
 
-  // Body
+  // Body - dynamically sized based on lessons
   let body = '';
   for(let h=START_HOUR; h<END_HOUR; h++) {
     body += `<div class="cal-hour-label">${String(h).padStart(2,'0')}:00</div>`;
@@ -1863,7 +1975,7 @@ function renderCalendar() {
   const eventsByDay = {};
   lessons.forEach(l => {
     const [lh,lm] = l.time.split(':').map(Number);
-    if(lh < START_HOUR || lh >= END_HOUR) return;
+    if(lh < START_HOUR || lh >= END_HOUR) return; // Now uses dynamic range
     const dayIdx = days.findIndex(d => dateStr(d) === l.date);
     if(dayIdx < 0) return;
     if(!eventsByDay[dayIdx]) eventsByDay[dayIdx] = [];
@@ -2226,9 +2338,21 @@ function importData() {
         lessons = validated.lessons;
         payments = validated.payments;
 
+        // Clear corrupted flag before save (import is the recovery path)
+        const wasCorrupted = dataCorrupted;
+        dataCorrupted = false;
+
         if(!saveData()) {
+          dataCorrupted = wasCorrupted; // Restore flag if save failed
           showToast('❌ שגיאה בשמירת הנתונים');
           return;
+        }
+
+        // Remove corrupted banner if it exists
+        const banner = document.getElementById('corruptedBanner');
+        if (banner) {
+          banner.remove();
+          document.body.style.paddingTop = '';
         }
 
         showToast('✅ נתונים יובאו בהצלחה');
@@ -2243,9 +2367,16 @@ function importData() {
   input.click();
 }
 
-// Close modals on Escape key only (not on overlay click)
+// Close modals on Escape key or overlay click
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape') document.querySelectorAll('.modal-overlay.show').forEach(o=>o.classList.remove('show'));
+});
+
+// Close modal when clicking on overlay (outside the modal content)
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-overlay') && e.target.classList.contains('show')) {
+    e.target.classList.remove('show');
+  }
 });
 
 // ============================================================
