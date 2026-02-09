@@ -1311,23 +1311,14 @@ function getStudentBalance(s) {
 
   const totalPaid = payments.filter(p=>p.studentId===s.id).reduce((sum,p)=>sum+p.amount,0);
 
-  // Calculate owed based on completed lessons only
-  // Cancelled or no-show lessons are NOT charged
-  const today = getRealTodayStr(); // Use real date, not working date
+  // Calculate owed based on ONLY completed lessons
+  // Status is the source of truth - past date alone does NOT mean lesson happened
   const studentLessons = lessons.filter(l => l.studentId === s.id);
 
   let totalOwed = 0;
   studentLessons.forEach(l => {
-    // Skip cancelled or no-show lessons - they are not charged
-    if (l.status === 'cancelled' || l.status === 'no-show') return;
-
-    // Lesson counts as "done" if:
-    // 1. Explicitly marked as completed, OR
-    // 2. Status is 'scheduled' (or missing) AND date is in the past
-    const isCompleted = l.status === 'completed';
-    const isPastScheduled = (l.status === 'scheduled' || !l.status) && l.date < today;
-
-    if (isCompleted || isPastScheduled) {
+    // ONLY charge for explicitly completed lessons
+    if (l.status === 'completed') {
       // Use stored price if available, otherwise use current student price
       totalOwed += (l.priceAtTime !== undefined && l.priceAtTime !== null) ? l.priceAtTime : (s.price || 0);
     }
@@ -1340,16 +1331,9 @@ function getStudentBalance(s) {
 
 // Get count of completed lessons for student
 function getCompletedLessonsCount(s) {
-  const today = getRealTodayStr();
-  return lessons.filter(l => {
-    if (l.studentId !== s.id) return false;
-    // Skip cancelled or no-show lessons
-    if (l.status === 'cancelled' || l.status === 'no-show') return false;
-    // Count as completed if explicitly marked OR scheduled and past
-    const isCompleted = l.status === 'completed';
-    const isPastScheduled = (l.status === 'scheduled' || !l.status) && l.date < today;
-    return isCompleted || isPastScheduled;
-  }).length;
+  // ONLY count lessons explicitly marked as completed
+  // Status is the source of truth - past date alone does NOT count
+  return lessons.filter(l => l.studentId === s.id && l.status === 'completed').length;
 }
 
 // ============================================================
@@ -1490,7 +1474,7 @@ let editingLessonId = null;
 
 function openNewLessonModal(prefillDate, prefillTime, editLessonId) {
   editingLessonId = editLessonId || null;
-  const today = todayStr();
+  const realToday = getRealTodayStr(); // Use real date, not working day
   const dateInput = document.getElementById('lessonDate');
   const statusGroup = document.getElementById('lessonStatusGroup');
   const statusSelect = document.getElementById('lessonStatus');
@@ -1514,8 +1498,8 @@ function openNewLessonModal(prefillDate, prefillTime, editLessonId) {
     // New lesson mode
     document.getElementById('lessonModalTitle').textContent = '📅 קביעת שיעור';
     populateStudentSelect('lessonStudent');
-    dateInput.min = today; // Prevent selecting past dates
-    dateInput.value = (prefillDate && prefillDate >= today) ? prefillDate : today;
+    dateInput.min = realToday; // Prevent selecting past dates (real date)
+    dateInput.value = (prefillDate && prefillDate >= realToday) ? prefillDate : realToday;
     document.getElementById('lessonTime').value = prefillTime || '';
     document.getElementById('lessonDuration').value = '40';
     document.getElementById('lessonAddress').value = '';
@@ -1573,6 +1557,11 @@ function buildReminderMsg(sName, lessonDate, time, dur, addr) {
 // Send reminder for specific lesson
 function sendTomorrowReminder(lid) {
   const l = lessons.find(x=>x.id===lid); if(!l) return;
+  // Only send reminders for scheduled lessons
+  if (l.status !== 'scheduled') {
+    showToast('⚠️ לא שולחים תזכורת לשיעור שבוטל/הסתיים');
+    return;
+  }
   const s = students.find(x=>x.id===l.studentId); if(!s) return;
   const msg = buildReminderMsg(s.name, l.date, l.time, l.duration, l.address);
   window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`,'_blank');
@@ -1580,9 +1569,10 @@ function sendTomorrowReminder(lid) {
 
 // Send reminders to all students with lessons tomorrow (opens one by one with delay)
 function sendAllTomorrowReminders() {
-  const tmrw = tomorrowStr();
-  const tmrwLessons = lessons.filter(l=>l.date===tmrw).sort((a,b)=>a.time.localeCompare(b.time));
-  if(tmrwLessons.length===0) { showToast('אין שיעורים מחר'); return; }
+  const tmrw = getRealTomorrowStr(); // Use real tomorrow, not working day
+  // Only send reminders for scheduled lessons
+  const tmrwLessons = lessons.filter(l => l.date === tmrw && l.status === 'scheduled').sort((a,b)=>a.time.localeCompare(b.time));
+  if(tmrwLessons.length===0) { showToast('אין שיעורים מתוכננים למחר'); return; }
   const popupWarning = tmrwLessons.length > 3 ? '\n\n⚠️ שים לב: אם חלונות לא נפתחים, יש לאשר pop-ups בדפדפן.' : '';
   if(!confirm(`לשלוח תזכורת ל-${tmrwLessons.length} תלמידים?${popupWarning}`)) return;
 
@@ -1614,9 +1604,9 @@ function saveLesson(withWa) {
   const dur=document.getElementById('lessonDuration').value, addr=document.getElementById('lessonAddress').value.trim();
   if(!sid||!d||!t){ showToast('⚠️ נא למלא תלמיד, תאריך ושעה'); return; }
 
-  // Validate not in the past (only for new lessons)
+  // Validate not in the past (only for new lessons) - use real date, not working day
   const now = new Date();
-  const today = todayStr();
+  const today = getRealTodayStr();
   if(!editingLessonId) {
     if(d < today) { showToast('⚠️ לא ניתן לקבוע שיעור בתאריך שעבר'); return; }
     if(d === today) {
@@ -1633,6 +1623,8 @@ function saveLesson(withWa) {
   const newEnd = newStart + parseInt(dur);
   const conflict = lessons.find(l => {
     if(l.id === editingLessonId) return false; // Skip self when editing
+    if(l.status === 'cancelled') return false; // Cancelled lessons don't block slots
+    if(l.status === 'no-show') return false; // No-show lessons don't block slots
     if(l.date !== d) return false;
     const [lh, lm] = l.time.split(':').map(Number);
     const lStart = lh * 60 + lm;
@@ -2020,7 +2012,7 @@ function renderCalendar() {
 }
 
 function onCalCellClick(date, time) {
-  const today = todayStr();
+  const today = getRealTodayStr(); // Use real date, not working day
   if(date < today) { showToast('⚠️ לא ניתן לקבוע שיעור בתאריך שעבר'); return; }
   if(date === today) {
     const now = new Date();
@@ -2092,8 +2084,14 @@ function renderFinance() {
     labelEl.textContent = `${MONTHS_HEB[finMonth]} ${finYear}`;
   }
   const totalIncome = mPayments.reduce((s,p)=>s+p.amount,0);
-  const totalLessons = mLessons.length;
-  const expectedIncome = mLessons.reduce((s,l)=>{
+  // Only count scheduled/completed lessons (not cancelled/no-show)
+  const relevantLessons = mLessons.filter(l => l.status === 'scheduled' || l.status === 'completed' || !l.status);
+  const totalLessons = relevantLessons.length;
+  // Use priceAtTime if available, fallback to student price
+  const expectedIncome = relevantLessons.reduce((s,l)=>{
+    if (l.priceAtTime !== undefined && l.priceAtTime !== null) {
+      return s + l.priceAtTime;
+    }
     const st = students.find(x=>x.id===l.studentId);
     return s + (st?.price||0);
   },0);
@@ -2192,9 +2190,9 @@ function renderDashboard() {
     uc.innerHTML = h;
   }
 
-  // Tomorrow's lessons section
-  const tmrw = tomorrowStr();
-  const tmrwLessons = lessons.filter(l=>l.date===tmrw).sort((a,b)=>a.time.localeCompare(b.time));
+  // Tomorrow's lessons section (use real tomorrow, only scheduled lessons)
+  const tmrw = getRealTomorrowStr();
+  const tmrwLessons = lessons.filter(l => l.date === tmrw && l.status === 'scheduled').sort((a,b)=>a.time.localeCompare(b.time));
   const tlc = document.getElementById('tomorrowLessons');
   if(tmrwLessons.length > 0) {
     let tlh = `<div class="section-title">📅 שיעורים מחר (${tmrwLessons.length})</div>`;
@@ -2257,15 +2255,16 @@ function renderStudents() {
 
 // ---- EXPORT / IMPORT ----
 function exportData() {
-  const data = { students, lessons, payments, exportedAt: new Date().toISOString() };
+  // Include vehicle and km data in backup
+  const data = { students, lessons, payments, vehicleData, kmHistory, exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `nahag-baseder-backup-${todayStr()}.json`;
+  a.download = `nahag-baseder-backup-${getRealTodayStr()}.json`; // Use real date
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  localStorage.setItem('drv_last_backup', todayStr());
+  localStorage.setItem('drv_last_backup', getRealTodayStr()); // Use real date
   showToast('📥 גיבוי הורד בהצלחה');
 }
 
@@ -2355,6 +2354,16 @@ function importData() {
           document.body.style.paddingTop = '';
         }
 
+        // Restore vehicle data if present in backup
+        if (rawData.vehicleData !== undefined) {
+          vehicleData = rawData.vehicleData;
+          localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
+        }
+        if (rawData.kmHistory !== undefined && Array.isArray(rawData.kmHistory)) {
+          kmHistory = rawData.kmHistory;
+          localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
+        }
+
         showToast('✅ נתונים יובאו בהצלחה');
         renderAll();
       } catch(err) {
@@ -2397,11 +2406,18 @@ try {
 }
 
 function saveVehicleData() {
+  // Block saves when data is corrupted
+  if (dataCorrupted) {
+    showToast('❌ מצב קריאה בלבד - לא ניתן לשמור');
+    return false;
+  }
   try {
     localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
     localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
+    return true;
   } catch(e) {
     showToast('⚠️ שגיאה בשמירה');
+    return false;
   }
 }
 
