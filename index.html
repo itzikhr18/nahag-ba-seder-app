@@ -32,6 +32,41 @@
 
 <title>נהג בסדר — ניהול שיעורי נהיגה</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC5TE_diBTNBYT2IMPJH0YsgD31spBqnE",
+    authDomain: "nahag-ba-seder.firebaseapp.com",
+    projectId: "nahag-ba-seder",
+    storageBucket: "nahag-ba-seder.firebasestorage.app",
+    messagingSenderId: "992942358011",
+    appId: "1:992942358011:web:d9b5147cb48def6163df5e",
+    measurementId: "G-L0JZFEGHXL"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  // Make Firebase available globally
+  window.firebaseDB = db;
+  window.firebaseAuth = auth;
+  window.firebaseDoc = doc;
+  window.firebaseSetDoc = setDoc;
+  window.firebaseGetDoc = getDoc;
+  window.firebaseOnSnapshot = onSnapshot;
+  window.firebaseSignInAnonymously = signInAnonymously;
+  window.firebaseOnAuthStateChanged = onAuthStateChanged;
+  window.firebaseReady = true;
+
+  // Dispatch event when Firebase is ready
+  window.dispatchEvent(new Event('firebaseReady'));
+</script>
 <style>
   :root {
     --bg: #0f1117;
@@ -508,6 +543,140 @@
     font-size: 11px;
     color: var(--accent);
   }
+
+  /* ===== OFFLINE INDICATOR ===== */
+  .offline-banner {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    color: white;
+    padding: 8px 16px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 10000;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  }
+  .offline-banner.show { display: block; }
+  body.is-offline { padding-top: 36px !important; }
+  body.is-offline .header { top: 36px; }
+  body.is-offline .nav-tabs { top: calc(106px + env(safe-area-inset-top, 0px)); }
+
+  /* ===== SYNC INDICATOR ===== */
+  .sync-indicator {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    z-index: 150;
+    box-shadow: var(--shadow);
+  }
+  .sync-indicator.show { display: flex; }
+  .sync-indicator.syncing { border-color: var(--blue); }
+  .sync-indicator.synced { border-color: var(--accent); }
+  .sync-indicator.error { border-color: var(--danger); }
+  .sync-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== CUSTOM CONFIRM MODAL ===== */
+  .confirm-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(4px);
+  }
+  .confirm-overlay.show { display: flex; }
+  .confirm-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px 20px;
+    max-width: 340px;
+    width: 100%;
+    text-align: center;
+    animation: slideUp 0.2s ease;
+  }
+  .confirm-icon { font-size: 40px; margin-bottom: 12px; }
+  .confirm-title { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+  .confirm-message { font-size: 14px; color: var(--text-dim); margin-bottom: 20px; white-space: pre-line; line-height: 1.5; }
+  .confirm-buttons { display: flex; gap: 10px; }
+  .confirm-buttons .btn { flex: 1; }
+
+  /* ===== LOADING OVERLAY ===== */
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 17, 23, 0.85);
+    z-index: 9998;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .loading-overlay.show { display: flex; }
+  .loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  .loading-text { font-size: 14px; color: var(--text-dim); }
+
+  /* ===== UNDO TOAST ===== */
+  .undo-toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(200px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    z-index: 300;
+    transition: transform 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: var(--shadow);
+  }
+  .undo-toast.show { transform: translateX(-50%) translateY(0); }
+  .undo-toast .undo-btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -672,13 +841,17 @@
       <label class="form-label">טלפון *</label>
       <input class="form-input" id="newStudentPhone" type="tel" placeholder="050-1234567" dir="ltr">
     </div>
-    <div class="form-row">
+    <div class="form-row three">
       <div class="form-group">
         <label class="form-label">מחיר לשיעור (₪)</label>
         <input class="form-input" id="newStudentPrice" type="number" placeholder="170" dir="ltr">
       </div>
       <div class="form-group">
-        <label class="form-label">שיעורים שבוצעו (כולל לפני האפליקציה)</label>
+        <label class="form-label">סה"כ שיעורים נדרשים</label>
+        <input class="form-input" id="newStudentTotalLessons" type="number" placeholder="28" dir="ltr" min="1" max="100">
+      </div>
+      <div class="form-group">
+        <label class="form-label">שיעורים שבוצעו</label>
         <div class="lesson-count">
           <button type="button" class="count-btn" onclick="adjustCount('newStudentLessons',-1)">−</button>
           <span class="count-display" id="newStudentLessons">0</span>
@@ -861,7 +1034,7 @@
       <input class="form-input" id="vehicleServiceDate" type="date" dir="ltr">
     </div>
     <div style="display:flex;gap:8px;margin-top:16px;">
-      <button type="button" class="btn btn-primary" style="flex:2" onclick="saveVehicle()">💾 שמירה</button>
+      <button type="button" class="btn btn-primary" style="flex:2" onclick="preventDoubleClick(saveVehicle)">💾 שמירה</button>
       <button type="button" class="btn btn-outline" style="flex:1" onclick="closeModal('modalVehicleEdit')">ביטול</button>
     </div>
   </div>
@@ -881,13 +1054,47 @@
       <input class="form-input" id="kmUpdateDate" type="date" dir="ltr">
     </div>
     <div style="display:flex;gap:8px;margin-top:16px;">
-      <button type="button" class="btn btn-primary" style="flex:2" onclick="saveKmUpdate()">💾 שמירה</button>
+      <button type="button" class="btn btn-primary" style="flex:2" onclick="preventDoubleClick(saveKmUpdate)">💾 שמירה</button>
       <button type="button" class="btn btn-outline" style="flex:1" onclick="closeModal('modalKmUpdate')">ביטול</button>
     </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- Offline Banner -->
+<div class="offline-banner" id="offlineBanner">📴 אין חיבור לאינטרנט - שינויים יישמרו מקומית</div>
+
+<!-- Sync Indicator -->
+<div class="sync-indicator" id="syncIndicator">
+  <div class="sync-spinner"></div>
+  <span id="syncText">מסנכרן...</span>
+</div>
+
+<!-- Custom Confirm Modal -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="confirm-icon" id="confirmIcon">⚠️</div>
+    <div class="confirm-title" id="confirmTitle">אישור</div>
+    <div class="confirm-message" id="confirmMessage"></div>
+    <div class="confirm-buttons">
+      <button class="btn btn-primary" id="confirmYes">אישור</button>
+      <button class="btn btn-outline" id="confirmNo">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loadingText">טוען...</div>
+</div>
+
+<!-- Undo Toast -->
+<div class="undo-toast" id="undoToast">
+  <span id="undoMessage">פריט נמחק</span>
+  <button class="undo-btn" id="undoBtn">↩️ ביטול</button>
+</div>
 
 <script>
 // ============================================================
@@ -1021,6 +1228,335 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ============================================================
+// FIREBASE SYNC & CLOUD BACKUP
+// ============================================================
+let firebaseUserId = null;
+let isOnline = navigator.onLine;
+let syncInProgress = false;
+let pendingSync = false;
+let lastSyncTime = null;
+
+// Offline detection
+window.addEventListener('online', () => {
+  isOnline = true;
+  document.getElementById('offlineBanner').classList.remove('show');
+  document.body.classList.remove('is-offline');
+  showToast('✅ חיבור לאינטרנט חזר');
+  // Sync pending changes
+  if (firebaseUserId) syncToCloud();
+});
+
+window.addEventListener('offline', () => {
+  isOnline = false;
+  document.getElementById('offlineBanner').classList.add('show');
+  document.body.classList.add('is-offline');
+});
+
+// Initialize offline state
+if (!navigator.onLine) {
+  document.getElementById('offlineBanner').classList.add('show');
+  document.body.classList.add('is-offline');
+}
+
+// Show sync indicator
+function showSyncIndicator(status, text) {
+  const indicator = document.getElementById('syncIndicator');
+  const textEl = document.getElementById('syncText');
+  indicator.className = 'sync-indicator show ' + status;
+  textEl.textContent = text;
+  if (status === 'synced') {
+    setTimeout(() => indicator.classList.remove('show'), 2000);
+  }
+}
+
+// Sync data to Firebase
+async function syncToCloud() {
+  if (!window.firebaseReady || !firebaseUserId || !isOnline) {
+    pendingSync = true;
+    return;
+  }
+  if (syncInProgress) {
+    pendingSync = true;
+    return;
+  }
+
+  syncInProgress = true;
+  showSyncIndicator('syncing', 'מסנכרן...');
+
+  try {
+    const userDoc = window.firebaseDoc(window.firebaseDB, 'users', firebaseUserId);
+    await window.firebaseSetDoc(userDoc, {
+      students: students,
+      lessons: lessons,
+      payments: payments,
+      vehicleData: vehicleData || null,
+      kmHistory: kmHistory || [],
+      lastUpdated: new Date().toISOString(),
+      appVersion: '2.0'
+    });
+
+    lastSyncTime = new Date();
+    showSyncIndicator('synced', '✓ מסונכרן');
+    localStorage.setItem('drv_last_cloud_sync', lastSyncTime.toISOString());
+  } catch (err) {
+    console.error('Sync error:', err);
+    showSyncIndicator('error', '⚠️ שגיאת סנכרון');
+    pendingSync = true;
+  } finally {
+    syncInProgress = false;
+    if (pendingSync) {
+      pendingSync = false;
+      setTimeout(syncToCloud, 1000);
+    }
+  }
+}
+
+// Load data from Firebase
+async function loadFromCloud() {
+  if (!window.firebaseReady || !firebaseUserId) return false;
+
+  try {
+    const userDoc = window.firebaseDoc(window.firebaseDB, 'users', firebaseUserId);
+    const docSnap = await window.firebaseGetDoc(userDoc);
+
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      // Check if cloud data is newer than local
+      const cloudTime = new Date(data.lastUpdated || 0);
+      const localTime = new Date(localStorage.getItem('drv_last_save') || 0);
+
+      if (cloudTime > localTime) {
+        // Cloud is newer - use cloud data
+        if (Array.isArray(data.students)) students = data.students;
+        if (Array.isArray(data.lessons)) lessons = data.lessons;
+        if (Array.isArray(data.payments)) payments = data.payments;
+        if (data.vehicleData !== undefined) vehicleData = data.vehicleData;
+        if (Array.isArray(data.kmHistory)) kmHistory = data.kmHistory;
+
+        // Save to localStorage
+        localStorage.setItem('drv_students', JSON.stringify(students));
+        localStorage.setItem('drv_lessons', JSON.stringify(lessons));
+        localStorage.setItem('drv_payments', JSON.stringify(payments));
+        localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
+        localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
+
+        return true;
+      }
+    }
+    return false;
+  } catch (err) {
+    console.error('Load from cloud error:', err);
+    return false;
+  }
+}
+
+// Initialize Firebase auth
+function initFirebaseAuth() {
+  if (!window.firebaseReady) {
+    window.addEventListener('firebaseReady', initFirebaseAuth);
+    return;
+  }
+
+  window.firebaseOnAuthStateChanged(window.firebaseAuth, async (user) => {
+    if (user) {
+      firebaseUserId = user.uid;
+      localStorage.setItem('drv_firebase_uid', user.uid);
+
+      // Try to load from cloud
+      const loadedFromCloud = await loadFromCloud();
+      if (loadedFromCloud) {
+        showToast('☁️ נתונים נטענו מהענן');
+        renderAll();
+      } else {
+        // Sync local to cloud
+        syncToCloud();
+      }
+    } else {
+      // Sign in anonymously
+      try {
+        await window.firebaseSignInAnonymously(window.firebaseAuth);
+      } catch (err) {
+        console.error('Auth error:', err);
+      }
+    }
+  });
+}
+
+// Start Firebase auth when ready
+if (window.firebaseReady) {
+  initFirebaseAuth();
+} else {
+  window.addEventListener('firebaseReady', initFirebaseAuth);
+}
+
+// ============================================================
+// INDEXEDDB BACKUP LAYER
+// ============================================================
+const IDB_NAME = 'nahag-ba-seder-backup';
+const IDB_VERSION = 1;
+let idbDatabase = null;
+
+function openIndexedDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(IDB_NAME, IDB_VERSION);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      idbDatabase = request.result;
+      resolve(idbDatabase);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('backup')) {
+        db.createObjectStore('backup', { keyPath: 'id' });
+      }
+    };
+  });
+}
+
+async function saveToIndexedDB() {
+  try {
+    if (!idbDatabase) await openIndexedDB();
+
+    const transaction = idbDatabase.transaction(['backup'], 'readwrite');
+    const store = transaction.objectStore('backup');
+
+    await store.put({
+      id: 'main',
+      students: students,
+      lessons: lessons,
+      payments: payments,
+      vehicleData: vehicleData,
+      kmHistory: kmHistory,
+      savedAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('IndexedDB save error:', err);
+  }
+}
+
+async function loadFromIndexedDB() {
+  try {
+    if (!idbDatabase) await openIndexedDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = idbDatabase.transaction(['backup'], 'readonly');
+      const store = transaction.objectStore('backup');
+      const request = store.get('main');
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error('IndexedDB load error:', err);
+    return null;
+  }
+}
+
+// Initialize IndexedDB
+openIndexedDB().catch(err => console.error('IndexedDB init error:', err));
+
+// ============================================================
+// CUSTOM CONFIRM DIALOG
+// ============================================================
+let confirmResolve = null;
+
+function customConfirm(message, title = 'אישור', icon = '⚠️') {
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+    document.getElementById('confirmIcon').textContent = icon;
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    document.getElementById('confirmOverlay').classList.add('show');
+  });
+}
+
+document.getElementById('confirmYes').addEventListener('click', () => {
+  document.getElementById('confirmOverlay').classList.remove('show');
+  if (confirmResolve) confirmResolve(true);
+});
+
+document.getElementById('confirmNo').addEventListener('click', () => {
+  document.getElementById('confirmOverlay').classList.remove('show');
+  if (confirmResolve) confirmResolve(false);
+});
+
+// ============================================================
+// LOADING OVERLAY
+// ============================================================
+function showLoading(text = 'טוען...') {
+  document.getElementById('loadingText').textContent = text;
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+
+// ============================================================
+// UNDO/SOFT DELETE SYSTEM
+// ============================================================
+let deletedItems = { students: [], lessons: [], payments: [] };
+let undoTimeout = null;
+
+function showUndoToast(message, type, item) {
+  const toast = document.getElementById('undoToast');
+  document.getElementById('undoMessage').textContent = message;
+  toast.classList.add('show');
+
+  // Clear previous timeout
+  if (undoTimeout) clearTimeout(undoTimeout);
+
+  // Store the deleted item for undo
+  deletedItems[type].push(item);
+
+  // Auto-hide after 5 seconds
+  undoTimeout = setTimeout(() => {
+    toast.classList.remove('show');
+    deletedItems[type] = []; // Clear after timeout
+  }, 5000);
+}
+
+document.getElementById('undoBtn').addEventListener('click', () => {
+  // Restore the last deleted item
+  if (deletedItems.students.length > 0) {
+    const item = deletedItems.students.pop();
+    students.push(item.student);
+    lessons.push(...item.lessons);
+    payments.push(...item.payments);
+    saveData();
+    renderAll();
+    showToast('↩️ התלמיד שוחזר');
+  } else if (deletedItems.lessons.length > 0) {
+    const item = deletedItems.lessons.pop();
+    lessons.push(item);
+    saveData();
+    renderAll();
+    showToast('↩️ השיעור שוחזר');
+  } else if (deletedItems.payments.length > 0) {
+    const item = deletedItems.payments.pop();
+    payments.push(item);
+    saveData();
+    renderAll();
+    showToast('↩️ התשלום שוחזר');
+  }
+
+  document.getElementById('undoToast').classList.remove('show');
+  if (undoTimeout) clearTimeout(undoTimeout);
+});
+
+// ============================================================
+// GLOBAL SETTINGS (configurable lessons count)
+// ============================================================
+const DEFAULT_TOTAL_LESSONS = 28;
+
+function getTotalLessonsForStudent(student) {
+  // Check if student has custom total, otherwise use default
+  return (student && typeof student.totalLessons === 'number') ? student.totalLessons : DEFAULT_TOTAL_LESSONS;
+}
+
+// ============================================================
 // DATA
 // ============================================================
 let students, lessons, payments;
@@ -1072,8 +1608,19 @@ function saveData() {
     localStorage.setItem('drv_students', JSON.stringify(students));
     localStorage.setItem('drv_lessons', JSON.stringify(lessons));
     localStorage.setItem('drv_payments', JSON.stringify(payments));
+    localStorage.setItem('drv_last_save', new Date().toISOString());
+
     // Invalidate balance cache on any data change
     invalidateBalanceCache();
+
+    // Backup to IndexedDB (async, non-blocking)
+    saveToIndexedDB();
+
+    // Sync to Firebase (async, non-blocking)
+    if (isOnline && firebaseUserId) {
+      syncToCloud();
+    }
+
     return true;
   } catch(e) {
     showToast('❌ שגיאה בשמירה! הנתונים לא נשמרו');
@@ -1388,7 +1935,7 @@ function getBalanceCacheKey(studentId) {
 }
 
 // Student balance = total paid - sum of completed lesson prices
-// Only counts lessons that actually happened (status = 'completed' or past date)
+// Only counts lessons that actually happened (status = 'completed' or legacy lessons without status that are in the past)
 // Uses cache for performance with many students
 function getStudentBalance(s) {
   const cacheKey = getBalanceCacheKey(s.id);
@@ -1398,14 +1945,19 @@ function getStudentBalance(s) {
 
   const totalPaid = payments.filter(p=>p.studentId===s.id).reduce((sum,p)=>sum+p.amount,0);
 
-  // Calculate owed based on ONLY completed lessons
-  // Status is the source of truth - past date alone does NOT mean lesson happened
+  // Calculate owed based on completed lessons AND legacy lessons (no status) that are in the past
   const studentLessons = lessons.filter(l => l.studentId === s.id);
+  const today = getRealTodayStr();
 
   let totalOwed = 0;
   studentLessons.forEach(l => {
-    // ONLY charge for explicitly completed lessons
-    if (l.status === 'completed') {
+    // Charge for:
+    // 1. Explicitly completed lessons
+    // 2. Legacy lessons (no status) that are in the past - assume they happened
+    const isCompleted = l.status === 'completed';
+    const isLegacyPast = !l.status && l.date < today;
+
+    if (isCompleted || isLegacyPast) {
       // Use stored price if available, otherwise use current student price
       totalOwed += (l.priceAtTime !== undefined && l.priceAtTime !== null) ? l.priceAtTime : (s.price || 0);
     }
@@ -1423,8 +1975,16 @@ function getCompletedLessonsCount(s) {
     ? s.initialCompletedLessons
     : 0;
 
-  // Plus lessons marked as completed in the app
-  const doneInApp = lessons.filter(l => l.studentId === s.id && l.status === 'completed').length;
+  const today = getRealTodayStr();
+
+  // Plus lessons marked as completed OR legacy lessons (no status) that are in the past
+  const doneInApp = lessons.filter(l => {
+    if (l.studentId !== s.id) return false;
+    if (l.status === 'completed') return true;
+    if (!l.status && l.date < today) return true; // Legacy lesson in past
+    return false;
+  }).length;
+
   return base + doneInApp;
 }
 
@@ -1506,6 +2066,7 @@ function openNewStudentModal(editId) {
     document.getElementById('newStudentName').value = s.name;
     document.getElementById('newStudentPhone').value = s.phone;
     document.getElementById('newStudentPrice').value = s.price||170;
+    document.getElementById('newStudentTotalLessons').value = s.totalLessons||28;
     document.getElementById('newStudentNotes').value = s.notes||'';
     document.getElementById('newStudentLessons').textContent = getCompletedLessonsCount(s);
     document.getElementById('newStudentWantsExtra').checked = s.wantsExtraLessons||false;
@@ -1513,16 +2074,18 @@ function openNewStudentModal(editId) {
   } else {
     ['newStudentName','newStudentPhone','newStudentNotes'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('newStudentPrice').value = '170';
+    document.getElementById('newStudentTotalLessons').value = '28';
     document.getElementById('newStudentLessons').textContent = '0';
     document.getElementById('newStudentWantsExtra').checked = false;
     document.querySelector('#modalNewStudent .modal-title').textContent = '👤 תלמיד חדש';
   }
   openModal('modalNewStudent');
 }
-function saveNewStudent() {
+async function saveNewStudent() {
   const name = document.getElementById('newStudentName').value.trim();
   const phone = document.getElementById('newStudentPhone').value.trim();
   const price = parseInt(document.getElementById('newStudentPrice').value)||170;
+  const totalLessons = parseInt(document.getElementById('newStudentTotalLessons').value)||28;
   const notes = document.getElementById('newStudentNotes').value.trim();
   const ld = parseInt(document.getElementById('newStudentLessons').textContent);
   const wantsExtra = document.getElementById('newStudentWantsExtra').checked;
@@ -1530,19 +2093,21 @@ function saveNewStudent() {
   const digits = phone.replace(/[\s\-()+"]/g,'').replace(/^\+/,'');
   if(digits.length < 9 || digits.length > 13 || !/^\d+$/.test(digits)){ showToast('⚠️ מספר טלפון לא תקין'); return; }
   if(price < 0 || price > 10000){ showToast('⚠️ מחיר לא תקין (0-10000)'); return; }
+  if(totalLessons < 1 || totalLessons > 100){ showToast('⚠️ סה"כ שיעורים לא תקין (1-100)'); return; }
   // Calculate desired completed count (limited to 0-1000)
   const desiredCompleted = (Number.isFinite(ld) && ld >= 0) ? Math.min(ld, 1000) : 0;
   // Check for duplicate phone (only when adding new student)
   if(!editingStudentId) {
     const existingByPhone = students.find(s => formatPhone(s.phone) === formatPhone(phone));
     if(existingByPhone) {
-      if(!confirm(`כבר קיים תלמיד עם מספר זה: ${existingByPhone.name}\n\nלהוסיף בכל זאת?`)) return;
+      const addAnyway = await customConfirm(`כבר קיים תלמיד עם מספר זה: ${existingByPhone.name}\n\nלהוסיף בכל זאת?`, 'תלמיד קיים', '⚠️');
+      if(!addAnyway) return;
     }
   }
   if(editingStudentId) {
     const s = students.find(x=>x.id===editingStudentId);
     if(s) {
-      s.name=name; s.phone=phone; s.price=price; s.notes=notes; s.wantsExtraLessons=wantsExtra;
+      s.name=name; s.phone=phone; s.price=price; s.notes=notes; s.wantsExtraLessons=wantsExtra; s.totalLessons=totalLessons;
       // Calculate initialCompletedLessons so total matches desired
       const doneInApp = lessons.filter(l => l.studentId === editingStudentId && l.status === 'completed').length;
       s.initialCompletedLessons = Math.max(0, desiredCompleted - doneInApp);
@@ -1556,7 +2121,7 @@ function saveNewStudent() {
     renderAll();
     editingStudentId = null;
   } else {
-    students.push({ id:genId(), name, phone, price, notes, initialCompletedLessons:desiredCompleted, wantsExtraLessons:wantsExtra, createdAt:new Date().toISOString() });
+    students.push({ id:genId(), name, phone, price, totalLessons, notes, initialCompletedLessons:desiredCompleted, wantsExtraLessons:wantsExtra, createdAt:new Date().toISOString() });
     if(!saveData()) return; // Stop if save failed
     closeModal('modalNewStudent');
     showToast('✅ תלמיד נוסף');
@@ -1663,29 +2228,48 @@ function sendTomorrowReminder(lid) {
   window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`,'_blank');
 }
 
-// Send reminders to all students with lessons tomorrow (opens one by one with delay)
-function sendAllTomorrowReminders() {
-  const tmrw = getRealTomorrowStr(); // Use real tomorrow, not working day
-  // Only send reminders for scheduled lessons
+// Send reminders to all students with lessons tomorrow
+async function sendAllTomorrowReminders() {
+  const tmrw = getRealTomorrowStr();
   const tmrwLessons = lessons.filter(l => l.date === tmrw && l.status === 'scheduled').sort((a,b)=>a.time.localeCompare(b.time));
-  if(tmrwLessons.length===0) { showToast('אין שיעורים מתוכננים למחר'); return; }
-  const popupWarning = tmrwLessons.length > 3 ? '\n\n⚠️ שים לב: אם חלונות לא נפתחים, יש לאשר pop-ups בדפדפן.' : '';
-  if(!confirm(`לשלוח תזכורת ל-${tmrwLessons.length} תלמידים?${popupWarning}`)) return;
 
-  let i = 0;
-  function sendNext() {
-    if(i >= tmrwLessons.length) { showToast(`✅ נשלחו ${tmrwLessons.length} תזכורות`); return; }
+  if(tmrwLessons.length === 0) {
+    showToast('אין שיעורים מתוכננים למחר');
+    return;
+  }
+
+  // If more than 3 students, offer different options
+  if(tmrwLessons.length > 3) {
+    const choice = await customConfirm(
+      `יש ${tmrwLessons.length} תלמידים לשליחת תזכורת.\n\n` +
+      `לחץ "אישור" לשליחה אחד-אחד (תצטרך לאשר כל חלון)\n` +
+      `או "ביטול" לשלוח ידנית מרשימת השיעורים.`,
+      'שליחת תזכורות', '📨'
+    );
+    if(!choice) return;
+  } else {
+    const confirmed = await customConfirm(`לשלוח תזכורת ל-${tmrwLessons.length} תלמידים?`, 'שליחת תזכורות', '📨');
+    if(!confirmed) return;
+  }
+
+  // Send one by one with user interaction
+  let sentCount = 0;
+  for(let i = 0; i < tmrwLessons.length; i++) {
     const l = tmrwLessons[i];
     const s = students.find(x=>x.id===l.studentId);
-    if(s) {
-      const msg = buildReminderMsg(s.name, l.date, l.time, l.duration, l.address);
-      window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`,'_blank');
+    if(!s) continue;
+
+    const msg = buildReminderMsg(s.name, l.date, l.time, l.duration, l.address);
+    window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`, '_blank');
+    sentCount++;
+
+    // Wait a bit between opens to avoid blocking
+    if(i < tmrwLessons.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 1200));
     }
-    i++;
-    if(i < tmrwLessons.length) setTimeout(sendNext, 800);
-    else showToast(`✅ נשלחו ${tmrwLessons.length} תזכורות`);
   }
-  sendNext();
+
+  showToast(`✅ נפתחו ${sentCount} חלונות וואטסאפ`);
 }
 function updateWaPreview() {
   const sid=document.getElementById('lessonStudent').value, d=document.getElementById('lessonDate').value, t=document.getElementById('lessonTime').value, dur=document.getElementById('lessonDuration').value, addr=document.getElementById('lessonAddress').value.trim();
@@ -1797,8 +2381,10 @@ function sendLessonWa(lid) {
   const msg=buildWaMsg(s.name,l.date,l.time,l.duration,l.address);
   window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`,'_blank');
 }
-function deleteLesson(lid) {
-  if(!confirm('למחוק את השיעור?'))return;
+async function deleteLesson(lid) {
+  const confirmed = await customConfirm('למחוק את השיעור?', 'מחיקת שיעור', '🗑️');
+  if(!confirmed) return;
+
   const lesson = lessons.find(l=>l.id===lid);
   if(!lesson) return;
 
@@ -1808,7 +2394,9 @@ function deleteLesson(lid) {
   // Delete the lesson (no need to update lessonsDone - calculated dynamically)
   lessons=lessons.filter(l=>l.id!==lid);
   if(!saveData()) return; // Stop if save failed
-  showToast('🗑️ שיעור נמחק');
+
+  // Show undo option
+  showUndoToast('השיעור נמחק', 'lessons', deletedLesson);
   renderAll();
 
   // Check if there are students who want extra lessons and don't have a lesson on this date
@@ -1824,26 +2412,38 @@ function deleteLesson(lid) {
 }
 
 // Offer to send notification about available slot
-function offerSlotNotification(lesson, eligibleStudents) {
+async function offerSlotNotification(lesson, eligibleStudents) {
   const count = eligibleStudents.length;
-  const popupWarning = count > 3 ? '\n\n⚠️ שים לב: אם חלונות לא נפתחים, יש לאשר pop-ups בדפדפן.' : '';
-  if(!confirm(`התפנה מקום ביומן!\n\nיש ${count} תלמידים שמחפשים שעות ופנויים בתאריך זה.\n\nלשלוח להם הודעה?${popupWarning}`)) return;
+
+  if(count > 3) {
+    const choice = await customConfirm(
+      `התפנה מקום ביומן!\n\nיש ${count} תלמידים שמחפשים שעות.\n\n` +
+      `לחץ "אישור" לשליחה אחד-אחד.`,
+      'הודעה על מקום פנוי', '📅'
+    );
+    if(!choice) return;
+  } else {
+    const confirmed = await customConfirm(
+      `התפנה מקום ביומן!\n\nיש ${count} תלמידים שמחפשים שעות.\n\nלשלוח להם הודעה?`,
+      'הודעה על מקום פנוי', '📅'
+    );
+    if(!confirmed) return;
+  }
 
   const msg = buildSlotAvailableMsg(lesson.date, lesson.time, lesson.duration, lesson.address);
 
-  let i = 0;
-  function sendNext() {
-    if(i >= eligibleStudents.length) {
-      showToast(`✅ נשלחו ${eligibleStudents.length} הודעות`);
-      return;
-    }
+  let sentCount = 0;
+  for(let i = 0; i < eligibleStudents.length; i++) {
     const st = eligibleStudents[i];
-    window.open(`https://wa.me/${formatPhone(st.phone)}?text=${encodeURIComponent(msg)}`,'_blank');
-    i++;
-    if(i < eligibleStudents.length) setTimeout(sendNext, 800);
-    else showToast(`✅ נשלחו ${eligibleStudents.length} הודעות`);
+    window.open(`https://wa.me/${formatPhone(st.phone)}?text=${encodeURIComponent(msg)}`, '_blank');
+    sentCount++;
+
+    if(i < eligibleStudents.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 1200));
+    }
   }
-  sendNext();
+
+  showToast(`✅ נפתחו ${sentCount} חלונות וואטסאפ`);
 }
 
 // Build message for available slot
@@ -1891,11 +2491,18 @@ function savePayment() {
   renderAll();
 }
 
-function deletePayment(pid) {
-  if(!confirm('למחוק את התשלום?')) return;
+async function deletePayment(pid) {
+  const confirmed = await customConfirm('למחוק את התשלום?', 'מחיקת תשלום', '🗑️');
+  if(!confirmed) return;
+
+  const payment = payments.find(p => p.id === pid);
+  if(!payment) return;
+
   payments = payments.filter(p => p.id !== pid);
   if(!saveData()) return; // Stop if save failed
-  showToast('🗑️ תשלום נמחק');
+
+  // Show undo option
+  showUndoToast('התשלום נמחק', 'payments', payment);
   renderAll();
 }
 
@@ -1909,19 +2516,25 @@ function sendDebtWa(sid) {
 }
 
 // ---- STUDENT DETAIL ----
-function deleteStudent(sid) {
+async function deleteStudent(sid) {
   const s=students.find(x=>x.id===sid);
   if(!s) return;
 
-  // Check for future lessons
-  const today = todayStr();
+  // Check for future lessons - use real today
+  const today = getRealTodayStr();
   const futureLessons = lessons.filter(l => l.studentId === sid && l.date >= today);
 
   let confirmMsg = `למחוק את ${s.name}? כל השיעורים והתשלומים שלו יימחקו גם.`;
   if(futureLessons.length > 0) {
     confirmMsg += `\n\n⚠️ לתלמיד יש ${futureLessons.length} שיעורים עתידיים שיימחקו!`;
   }
-  if(!confirm(confirmMsg)) return;
+  const confirmed = await customConfirm(confirmMsg, 'מחיקת תלמיד', '🗑️');
+  if(!confirmed) return;
+
+  // Save all student data for undo
+  const studentLessons = lessons.filter(l => l.studentId === sid);
+  const studentPayments = payments.filter(p => p.studentId === sid);
+  const deletedStudentData = { student: {...s}, lessons: [...studentLessons], payments: [...studentPayments] };
 
   // Save future lessons data before deleting
   const deletedLessons = [...futureLessons];
@@ -1931,15 +2544,20 @@ function deleteStudent(sid) {
   payments=payments.filter(p=>p.studentId!==sid);
   if(!saveData()) return; // Stop if save failed
   closeModal('modalStudentDetail');
-  showToast('🗑️ תלמיד נמחק');
+
+  // Show undo option
+  showUndoToast(`${s.name} נמחק`, 'students', deletedStudentData);
   renderAll();
 
   // Offer to notify about available slots
   if(deletedLessons.length > 0) {
     const studentsWantingExtra = students.filter(st => st.wantsExtraLessons);
-    if(studentsWantingExtra.length > 0 && confirm(`התפנו ${deletedLessons.length} מקומות ביומן.\n\nלשלוח הודעה ל-${studentsWantingExtra.length} תלמידים שמחפשים שעות?`)) {
-      // Notify about the first available slot
-      offerSlotNotification(deletedLessons[0], studentsWantingExtra);
+    if(studentsWantingExtra.length > 0) {
+      const notifyConfirmed = await customConfirm(`התפנו ${deletedLessons.length} מקומות ביומן.\n\nלשלוח הודעה ל-${studentsWantingExtra.length} תלמידים שמחפשים שעות?`, 'הודעה על מקומות פנויים', '📨');
+      if(notifyConfirmed) {
+        // Notify about the first available slot
+        offerSlotNotification(deletedLessons[0], studentsWantingExtra);
+      }
     }
   }
 }
@@ -1963,7 +2581,7 @@ function openStudentDetail(sid) {
     </div>
     <div class="stats-bar four">
       <div class="stat-card"><div class="stat-number">${completedCount}</div><div class="stat-label">בוצעו</div></div>
-      <div class="stat-card"><div class="stat-number">${Math.max(0,28-completedCount)}</div><div class="stat-label">נותרו</div></div>
+      <div class="stat-card"><div class="stat-number">${Math.max(0,getTotalLessonsForStudent(s)-completedCount)}</div><div class="stat-label">נותרו</div></div>
       <div class="stat-card"><div class="stat-number">${fmtMoney(totalPaid)}</div><div class="stat-label">שולם ₪</div></div>
       <div class="stat-card"><div class="stat-number ${balColor}">${bal<0?fmtMoney(Math.abs(bal)):bal>0?fmtMoney(bal):'0'}</div><div class="stat-label">${bal<0?'חוב ₪':bal>0?'זכות ₪':'מאוזן'}</div></div>
     </div>`;
@@ -2045,8 +2663,8 @@ function renderCalendar() {
   const m1 = MONTHS_HEB[days[0].getMonth()], m2 = MONTHS_HEB[days[6].getMonth()];
   document.getElementById('calTitle').textContent = m1===m2 ? `${days[0].getDate()}–${days[6].getDate()} ${m1}` : `${days[0].getDate()} ${m1} – ${days[6].getDate()} ${m2}`;
 
-  // Header
-  const todayD = todayStr();
+  // Header - use real today for consistency
+  const todayD = getRealTodayStr();
   let hdr = '<div></div>';
   days.forEach(d => {
     const ds = dateStr(d);
@@ -2268,12 +2886,14 @@ function renderAll() {
 }
 
 function updateHeader() {
-  const n = getWorkingDate();
+  // Always show real date, not working day - to avoid confusion
+  const n = new Date();
   document.getElementById('headerDate').textContent = `יום ${DAYS_HEB[n.getDay()]}, ${n.getDate()} ${MONTHS_HEB[n.getMonth()]} ${n.getFullYear()}`;
 }
 
 function renderDashboard() {
-  const td = todayStr();
+  // Use real today, not working day - for consistency with header
+  const td = getRealTodayStr();
   document.getElementById('statStudents').textContent = students.length;
   document.getElementById('statLessonsToday').textContent = lessons.filter(l=>l.date===td).length;
 
@@ -2363,12 +2983,13 @@ function renderStudents() {
   let h='';
   filtered.forEach(s => {
     const completedCount = getCompletedLessonsCount(s);
-    const rem=Math.max(0,28-completedCount);
+    const totalLessons = getTotalLessonsForStudent(s);
+    const rem=Math.max(0,totalLessons-completedCount);
     const bal=getStudentBalance(s);
     const lessonBadge = rem<=5?'badge-green':'badge-yellow';
     const debtBadge = bal<0?`<span class="badge badge-red">חוב ${fmtMoney(Math.abs(bal))} ₪</span>`:'';
     const extraBadge = s.wantsExtraLessons?`<span class="badge badge-blue">🔔 מחפש שעות</span>`:'';
-    h += `<div class="student-item" onclick="openStudentDetail('${s.id}')"><div class="student-avatar">${escHtml(getInitials(s.name))}</div><div class="student-info"><div class="student-name">${escHtml(s.name)}</div><div class="student-meta"><span>${completedCount}/28</span><span class="badge ${lessonBadge}">${rem===0?'מוכן!':'נותרו '+rem}</span>${debtBadge}${extraBadge}</div></div><div class="student-actions"><button class="icon-btn wa" onclick="event.stopPropagation();window.open('https://wa.me/${formatPhone(s.phone)}','_blank')" title="וואטסאפ">💬</button></div></div>`;
+    h += `<div class="student-item" onclick="openStudentDetail('${s.id}')"><div class="student-avatar">${escHtml(getInitials(s.name))}</div><div class="student-info"><div class="student-name">${escHtml(s.name)}</div><div class="student-meta"><span>${completedCount}/${totalLessons}</span><span class="badge ${lessonBadge}">${rem===0?'מוכן!':'נותרו '+rem}</span>${debtBadge}${extraBadge}</div></div><div class="student-actions"><button class="icon-btn wa" onclick="event.stopPropagation();window.open('https://wa.me/${formatPhone(s.phone)}','_blank')" title="וואטסאפ">💬</button></div></div>`;
   });
   c.innerHTML=h;
 }
@@ -2401,7 +3022,7 @@ function exportData() {
   }, 400);
 }
 
-function checkBackupReminder() {
+async function checkBackupReminder() {
   const lastBackup = localStorage.getItem('drv_last_backup');
   const reminderShown = localStorage.getItem('drv_backup_reminder_shown');
 
@@ -2409,10 +3030,9 @@ function checkBackupReminder() {
     // First time user - only remind once, then mark as shown
     if (students.length > 0 && !reminderShown) {
       localStorage.setItem('drv_backup_reminder_shown', 'true');
-      setTimeout(() => {
-        if (confirm('💾 טרם ביצעת גיבוי לנתונים שלך.\n\nמומלץ לגבות את הנתונים באופן קבוע.\n\nלגבות עכשיו?')) {
-          exportData();
-        }
+      setTimeout(async () => {
+        const backup = await customConfirm('טרם ביצעת גיבוי לנתונים שלך.\n\nמומלץ לגבות את הנתונים באופן קבוע.\n\nלגבות עכשיו?', 'תזכורת גיבוי', '💾');
+        if (backup) exportData();
       }, 2000);
     }
     return;
@@ -2423,10 +3043,9 @@ function checkBackupReminder() {
   const daysSinceBackup = Math.floor((now - lastDate) / (1000 * 60 * 60 * 24));
 
   if (daysSinceBackup >= 7) {
-    setTimeout(() => {
-      if (confirm(`💾 עברו ${daysSinceBackup} ימים מאז הגיבוי האחרון.\n\nמומלץ לגבות את הנתונים באופן שבועי.\n\nלגבות עכשיו?`)) {
-        exportData();
-      }
+    setTimeout(async () => {
+      const backup = await customConfirm(`עברו ${daysSinceBackup} ימים מאז הגיבוי האחרון.\n\nמומלץ לגבות את הנתונים באופן שבועי.\n\nלגבות עכשיו?`, 'תזכורת גיבוי', '💾');
+      if (backup) exportData();
     }, 2000);
   }
 }
@@ -2438,7 +3057,7 @@ function importData() {
     const file = e.target.files[0];
     if(!file) return;
     const reader = new FileReader();
-    reader.onload = ev => {
+    reader.onload = async (ev) => {
       try {
         const rawData = JSON.parse(ev.target.result);
         if(!rawData.students || !rawData.lessons || !rawData.payments) {
@@ -2464,7 +3083,8 @@ function importData() {
         }
         confirmMsg += '\n\nהנתונים הנוכחיים יוחלפו.';
 
-        if(!confirm(confirmMsg)) return;
+        const importConfirmed = await customConfirm(confirmMsg, 'ייבוא גיבוי', '📥');
+        if(!importConfirmed) return;
 
         students = validated.students;
         lessons = validated.lessons;
