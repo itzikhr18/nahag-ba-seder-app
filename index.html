@@ -1433,6 +1433,9 @@ async function loadFromCloud(forceLoad = false) {
             }
           }
 
+          // CRITICAL: Invalidate balance cache after data replacement
+          invalidateBalanceCache();
+
           return true;
         }
       }
@@ -1724,6 +1727,34 @@ try {
     showCorruptedDataBanner();
   }, 500);
 }
+
+// One-time migration: Add status to legacy lessons without status
+// This prevents automatic billing based on date alone
+(function migrateLegacyLessons() {
+  const MIGRATION_KEY = 'drv_migration_lesson_status_v1';
+  if (localStorage.getItem(MIGRATION_KEY)) return; // Already migrated
+  if (dataCorrupted) return; // Don't migrate corrupted data
+
+  let migrated = false;
+  const today = new Date().toISOString().slice(0, 10);
+
+  lessons.forEach(lesson => {
+    if (!lesson.status) {
+      // Legacy lesson without status - assign based on date
+      lesson.status = lesson.date < today ? 'completed' : 'scheduled';
+      migrated = true;
+    }
+  });
+
+  if (migrated) {
+    // Save migrated lessons
+    localStorage.setItem('drv_lessons', JSON.stringify(lessons));
+    console.log('Migration complete: Added status to legacy lessons');
+  }
+
+  // Mark migration as done
+  localStorage.setItem(MIGRATION_KEY, new Date().toISOString());
+})();
 
 // Show persistent warning banner for corrupted data
 function showCorruptedDataBanner() {
@@ -2630,10 +2661,13 @@ async function offerSlotNotification(lesson, eligibleStudents) {
   showSlotNotificationList(lesson, eligibleStudents);
 }
 
+// Current slot lesson data (stored here to avoid XSS via onclick attributes)
+let currentSlotLesson = null;
+
 // Show modal with individual slot notification buttons - each button click is a user gesture
 function showSlotNotificationList(lesson, eligibleStudents) {
-  const msg = buildSlotAvailableMsg(lesson.date, lesson.time, lesson.duration, lesson.address);
-  const encodedMsg = encodeURIComponent(msg);
+  // Store lesson data securely - don't pass through onclick attribute
+  currentSlotLesson = lesson;
 
   let html = `
     <div style="max-height:60vh;overflow-y:auto;">
@@ -2646,9 +2680,9 @@ function showSlotNotificationList(lesson, eligibleStudents) {
 
   eligibleStudents.forEach((s) => {
     html += `
-      <div class="slot-item" id="slot-${s.id}" style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--card);border-radius:10px;margin-bottom:8px;border:1px solid var(--border);">
+      <div class="slot-item" id="slot-${escHtml(s.id)}" style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--card);border-radius:10px;margin-bottom:8px;border:1px solid var(--border);">
         <div style="font-weight:600;">${escHtml(s.name)}</div>
-        <button onclick="sendSlotNotification('${s.id}', '${encodedMsg}')" class="btn-slot" style="background:var(--accent);color:white;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:500;">
+        <button onclick="sendSlotNotification('${escHtml(s.id)}')" class="btn-slot" style="background:var(--accent);color:white;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:500;">
           📱 שלח
         </button>
       </div>
@@ -2661,9 +2695,13 @@ function showSlotNotificationList(lesson, eligibleStudents) {
   openModal('modalSlotList');
 }
 
-function sendSlotNotification(sid, encodedMsg) {
+function sendSlotNotification(sid) {
   const s = students.find(x => x.id === sid);
-  if (!s) return;
+  if (!s || !currentSlotLesson) return;
+
+  // Build message here from stored lesson data - safe from XSS
+  const msg = buildSlotAvailableMsg(currentSlotLesson.date, currentSlotLesson.time, currentSlotLesson.duration, currentSlotLesson.address);
+  const encodedMsg = encodeURIComponent(msg);
 
   window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodedMsg}`, '_blank');
 
@@ -2769,7 +2807,7 @@ async function deleteStudent(sid) {
 
   if (futureLessons.length > 0 && studentsWantingExtra.length > 0) {
     shouldNotify = await customConfirm(
-      `יתפנו ${futureLessons.length} מקומות ביומן.\n\nלשלוח הודעה ל-${studentsWantingExtra.length} תלמידים שמחפשים שעות?`,
+      `יתפנו ${futureLessons.length} מקומות ביומן.\n\nלשלוח הודעה ל-${studentsWantingExtra.length} תלמידים שמחפשים שעות?\n\n⚠️ לאחר שליחת הודעות לא ניתן לבטל את המחיקה.`,
       'הודעה על מקומות פנויים',
       '📨'
     );
@@ -2789,11 +2827,15 @@ async function deleteStudent(sid) {
   if(!saveData()) return; // Stop if save failed
   closeModal('modalStudentDetail');
 
-  // Show undo option - now guaranteed to be visible for full 5 seconds
-  showUndoToast(`${s.name} נמחק`, 'students', deletedStudentData);
+  // Show undo only if no WhatsApp will be sent (to avoid confusion - same as deleteLesson)
+  if (!shouldNotify) {
+    showUndoToast(`${s.name} נמחק`, 'students', deletedStudentData);
+  } else {
+    showToast('🗑️ התלמיד נמחק');
+  }
   renderAll();
 
-  // Send notifications if user agreed (happens AFTER undo is shown)
+  // Send notifications if user agreed (undo no longer available after WhatsApp is sent)
   if (shouldNotify && deletedLessons.length > 0) {
     showSlotNotificationList(deletedLessons[0], studentsWantingExtra);
   }
@@ -3330,6 +3372,14 @@ function importData() {
         lessons = validated.lessons;
         payments = validated.payments;
 
+        // IMPORTANT: Update vehicle data BEFORE saveData() so cloud sync includes them
+        if (validated.vehicleData !== undefined) {
+          vehicleData = validated.vehicleData; // can be null
+        }
+        if (validated.kmHistory !== undefined) {
+          kmHistory = validated.kmHistory; // always an array
+        }
+
         // Clear corrupted flag before save (import is the recovery path)
         const wasCorrupted = dataCorrupted;
         dataCorrupted = false;
@@ -3347,15 +3397,9 @@ function importData() {
           document.body.style.paddingTop = '';
         }
 
-        // Restore vehicle data if present in backup (use validated data)
-        if (validated.vehicleData !== undefined) {
-          vehicleData = validated.vehicleData; // can be null
-          localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
-        }
-        if (validated.kmHistory !== undefined) {
-          kmHistory = validated.kmHistory; // always an array
-          localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
-        }
+        // Also save vehicle data to localStorage (saveData doesn't do this)
+        localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
+        localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
 
         showToast('✅ נתונים יובאו בהצלחה');
         renderAll();
