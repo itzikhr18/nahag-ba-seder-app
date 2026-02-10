@@ -1271,6 +1271,11 @@ function showSyncIndicator(status, text) {
 
 // Sync data to Firebase
 async function syncToCloud() {
+  // CRITICAL: Never sync corrupted data to cloud
+  if (dataCorrupted) {
+    console.warn('syncToCloud blocked: data is corrupted');
+    return;
+  }
   if (!window.firebaseReady || !firebaseUserId || !isOnline) {
     pendingSync = true;
     return;
@@ -1311,6 +1316,55 @@ async function syncToCloud() {
   }
 }
 
+// Validate cloud data before loading (uses existing validation functions)
+function validateCloudData(data) {
+  const validatedStudents = [];
+  const validStudentIds = new Set();
+
+  // Validate students first
+  if (Array.isArray(data.students)) {
+    for (const s of data.students) {
+      const validated = validateStudent(s);
+      if (validated) {
+        validatedStudents.push(validated);
+        validStudentIds.add(validated.id);
+      }
+    }
+  }
+
+  // Validate lessons (must reference valid students)
+  const validatedLessons = [];
+  if (Array.isArray(data.lessons)) {
+    for (const l of data.lessons) {
+      const validated = validateLesson(l, validStudentIds);
+      if (validated) validatedLessons.push(validated);
+    }
+  }
+
+  // Validate payments (must reference valid students)
+  const validatedPayments = [];
+  if (Array.isArray(data.payments)) {
+    for (const p of data.payments) {
+      const validated = validatePayment(p, validStudentIds);
+      if (validated) validatedPayments.push(validated);
+    }
+  }
+
+  // Validate vehicle data
+  const validatedVehicle = data.vehicleData !== undefined ? validateVehicleData(data.vehicleData) : undefined;
+
+  // Validate km history
+  const validatedKmHistory = validateKmHistory(data.kmHistory);
+
+  return {
+    students: validatedStudents,
+    lessons: validatedLessons,
+    payments: validatedPayments,
+    vehicleData: validatedVehicle,
+    kmHistory: validatedKmHistory
+  };
+}
+
 // Load data from Firebase
 async function loadFromCloud() {
   if (!window.firebaseReady || !firebaseUserId) return false;
@@ -1326,21 +1380,36 @@ async function loadFromCloud() {
       const localTime = new Date(localStorage.getItem('drv_last_save') || 0);
 
       if (cloudTime > localTime) {
-        // Cloud is newer - use cloud data
-        if (Array.isArray(data.students)) students = data.students;
-        if (Array.isArray(data.lessons)) lessons = data.lessons;
-        if (Array.isArray(data.payments)) payments = data.payments;
-        if (data.vehicleData !== undefined) vehicleData = data.vehicleData;
-        if (Array.isArray(data.kmHistory)) kmHistory = data.kmHistory;
+        // Validate cloud data before using
+        const validated = validateCloudData(data);
 
-        // Save to localStorage
-        localStorage.setItem('drv_students', JSON.stringify(students));
-        localStorage.setItem('drv_lessons', JSON.stringify(lessons));
-        localStorage.setItem('drv_payments', JSON.stringify(payments));
-        localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
-        localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
+        // Only proceed if we got any valid data
+        if (validated.students.length > 0 || validated.lessons.length > 0 || validated.payments.length > 0) {
+          students = validated.students;
+          lessons = validated.lessons;
+          payments = validated.payments;
+          if (validated.vehicleData !== undefined) vehicleData = validated.vehicleData;
+          kmHistory = validated.kmHistory;
 
-        return true;
+          // Save to localStorage
+          localStorage.setItem('drv_students', JSON.stringify(students));
+          localStorage.setItem('drv_lessons', JSON.stringify(lessons));
+          localStorage.setItem('drv_payments', JSON.stringify(payments));
+          localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
+          localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
+
+          // Clear corrupted state if cloud load succeeded
+          if (dataCorrupted) {
+            dataCorrupted = false;
+            const banner = document.getElementById('corruptedBanner');
+            if (banner) {
+              banner.remove();
+              document.body.style.paddingTop = '';
+            }
+          }
+
+          return true;
+        }
       }
     }
     return false;
@@ -1525,19 +1594,42 @@ document.getElementById('undoBtn').addEventListener('click', () => {
     students.push(item.student);
     lessons.push(...item.lessons);
     payments.push(...item.payments);
-    saveData();
+
+    if (!saveData()) {
+      // Revert the undo - remove the items we just added
+      students = students.filter(s => s.id !== item.student.id);
+      lessons = lessons.filter(l => !item.lessons.some(dl => dl.id === l.id));
+      payments = payments.filter(p => !item.payments.some(dp => dp.id === p.id));
+      deletedItems.students.push(item); // Put item back for retry
+      showToast('❌ שחזור נכשל - נסה שוב');
+      return;
+    }
     renderAll();
     showToast('↩️ התלמיד שוחזר');
+
   } else if (deletedItems.lessons.length > 0) {
     const item = deletedItems.lessons.pop();
     lessons.push(item);
-    saveData();
+
+    if (!saveData()) {
+      lessons = lessons.filter(l => l.id !== item.id);
+      deletedItems.lessons.push(item);
+      showToast('❌ שחזור נכשל - נסה שוב');
+      return;
+    }
     renderAll();
     showToast('↩️ השיעור שוחזר');
+
   } else if (deletedItems.payments.length > 0) {
     const item = deletedItems.payments.pop();
     payments.push(item);
-    saveData();
+
+    if (!saveData()) {
+      payments = payments.filter(p => p.id !== item.id);
+      deletedItems.payments.push(item);
+      showToast('❌ שחזור נכשל - נסה שוב');
+      return;
+    }
     renderAll();
     showToast('↩️ התשלום שוחזר');
   }
@@ -2027,7 +2119,7 @@ function preventDoubleClick(fn) {
   try {
     fn();
   } finally {
-    setTimeout(() => { isSaving = false; }, 500);
+    setTimeout(() => { isSaving = false; }, 2000); // Increased from 500ms for async safety
   }
 }
 function adjustCount(id,d) { const el=document.getElementById(id); let v=parseInt(el.textContent)+d; if(v<0)v=0; el.textContent=v; }
@@ -2333,12 +2425,13 @@ function saveLesson(withWa) {
       lesson.time = t;
       lesson.duration = parseInt(dur);
       lesson.address = addr;
-      // Update status from selector - block completed for future lessons
+      // Update status from selector - block completed/no-show for future lessons
       const newStatus = document.getElementById('lessonStatus').value;
-      if (newStatus === 'completed') {
+      if (newStatus === 'completed' || newStatus === 'no-show') {
         const lessonDt = new Date(`${d}T${t}:00`);
         if (lessonDt > now) {
-          showToast('⚠️ לא ניתן לסמן שיעור עתידי כ״בוצע״');
+          const statusHeb = newStatus === 'completed' ? 'בוצע' : 'לא הגיע';
+          showToast(`⚠️ לא ניתן לסמן שיעור עתידי כ״${statusHeb}״`);
           return;
         }
       }
@@ -2371,7 +2464,7 @@ function saveLesson(withWa) {
 
   if(withWa) {
     const msg = buildWaMsg(s.name,d,t,dur,addr);
-    setTimeout(()=>window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`,'_blank'),400);
+    window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`,'_blank');
   }
 }
 
@@ -2382,11 +2475,25 @@ function sendLessonWa(lid) {
   window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`,'_blank');
 }
 async function deleteLesson(lid) {
-  const confirmed = await customConfirm('למחוק את השיעור?', 'מחיקת שיעור', '🗑️');
-  if(!confirmed) return;
-
   const lesson = lessons.find(l=>l.id===lid);
   if(!lesson) return;
+
+  // Check if there are students who want extra lessons BEFORE deletion
+  const studentsWantingExtra = students.filter(st =>
+    st.wantsExtraLessons &&
+    st.id !== lesson.studentId &&
+    !lessons.some(l => l.id !== lid && l.studentId === st.id && l.date === lesson.date)
+  );
+
+  // Build confirmation message with warning if WhatsApp will be offered
+  let confirmMsg = 'למחוק את השיעור?';
+  if (studentsWantingExtra.length > 0) {
+    confirmMsg += `\n\n📨 יוצעו הודעות ל-${studentsWantingExtra.length} תלמידים שמחפשים שעות.`;
+    confirmMsg += '\n⚠️ לאחר שליחת הודעות לא ניתן לבטל.';
+  }
+
+  const confirmed = await customConfirm(confirmMsg, 'מחיקת שיעור', '🗑️');
+  if(!confirmed) return;
 
   // Save lesson details before deleting
   const deletedLesson = { ...lesson };
@@ -2395,17 +2502,15 @@ async function deleteLesson(lid) {
   lessons=lessons.filter(l=>l.id!==lid);
   if(!saveData()) return; // Stop if save failed
 
-  // Show undo option
-  showUndoToast('השיעור נמחק', 'lessons', deletedLesson);
+  // Show undo only if no WhatsApp will be sent (to avoid confusion)
+  if (studentsWantingExtra.length === 0) {
+    showUndoToast('השיעור נמחק', 'lessons', deletedLesson);
+  } else {
+    showToast('🗑️ השיעור נמחק');
+  }
   renderAll();
 
-  // Check if there are students who want extra lessons and don't have a lesson on this date
-  const studentsWantingExtra = students.filter(st =>
-    st.wantsExtraLessons &&
-    st.id !== deletedLesson.studentId && // Not the student whose lesson was deleted
-    !lessons.some(l => l.studentId === st.id && l.date === deletedLesson.date) // No lesson on this date
-  );
-
+  // Offer slot notification (undo no longer available after WhatsApp is sent)
   if(studentsWantingExtra.length > 0) {
     offerSlotNotification(deletedLesson, studentsWantingExtra);
   }
@@ -3167,6 +3272,16 @@ function saveVehicleData() {
   try {
     localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
     localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
+    localStorage.setItem('drv_last_save', new Date().toISOString());
+
+    // Backup to IndexedDB (async, non-blocking)
+    saveToIndexedDB();
+
+    // Sync to Firebase (async, non-blocking)
+    if (isOnline && firebaseUserId) {
+      syncToCloud();
+    }
+
     return true;
   } catch(e) {
     showToast('⚠️ שגיאה בשמירה');

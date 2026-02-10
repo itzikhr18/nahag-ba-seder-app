@@ -1,7 +1,7 @@
 // נהג בסדר - Service Worker
-// גרסה: 1.0.0
+// גרסה: 2.0.0 - תיקוני באגים קריטיים לסנכרון ענן, ולידציה ושמירת נתונים
 
-const CACHE_NAME = 'nahag-baseder-v1';
+const CACHE_NAME = 'nahag-baseder-v2';
 
 // קבצים לשמירה במטמון
 const STATIC_ASSETS = [
