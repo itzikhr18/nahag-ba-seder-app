@@ -1060,6 +1060,30 @@
   </div>
 </div>
 
+<!-- Reminder List Modal (WhatsApp per-student) -->
+<div class="modal-overlay" id="modalReminderList">
+  <div class="modal" style="max-width:450px;">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📨 שליחת תזכורות למחר</div>
+    <div id="reminderListContent"></div>
+    <div style="margin-top:16px;">
+      <button type="button" class="btn btn-outline" style="width:100%;" onclick="closeModal('modalReminderList')">סגור</button>
+    </div>
+  </div>
+</div>
+
+<!-- Slot Notification List Modal (WhatsApp per-student) -->
+<div class="modal-overlay" id="modalSlotList">
+  <div class="modal" style="max-width:450px;">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📅 הודעה על מקום פנוי</div>
+    <div id="slotListContent"></div>
+    <div style="margin-top:16px;">
+      <button type="button" class="btn btn-outline" style="width:100%;" onclick="closeModal('modalSlotList')">סגור</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Offline Banner -->
@@ -1366,7 +1390,7 @@ function validateCloudData(data) {
 }
 
 // Load data from Firebase
-async function loadFromCloud() {
+async function loadFromCloud(forceLoad = false) {
   if (!window.firebaseReady || !firebaseUserId) return false;
 
   try {
@@ -1375,11 +1399,11 @@ async function loadFromCloud() {
 
     if (docSnap.exists()) {
       const data = docSnap.data();
-      // Check if cloud data is newer than local
+      // Check if cloud data is newer than local (or forceLoad for recovery)
       const cloudTime = new Date(data.lastUpdated || 0);
       const localTime = new Date(localStorage.getItem('drv_last_save') || 0);
 
-      if (cloudTime > localTime) {
+      if (forceLoad || cloudTime > localTime) {
         // Validate cloud data before using
         const validated = validateCloudData(data);
 
@@ -1397,6 +1421,7 @@ async function loadFromCloud() {
           localStorage.setItem('drv_payments', JSON.stringify(payments));
           localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
           localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
+          localStorage.setItem('drv_last_save', new Date().toISOString()); // Update timestamp after cloud recovery
 
           // Clear corrupted state if cloud load succeeded
           if (dataCorrupted) {
@@ -1416,6 +1441,34 @@ async function loadFromCloud() {
   } catch (err) {
     console.error('Load from cloud error:', err);
     return false;
+  }
+}
+
+// Force recovery from cloud - used when local data is corrupted
+async function recoverFromCloud() {
+  if (!window.firebaseReady || !firebaseUserId) {
+    showToast('אין חיבור לענן - נא להתחבר לאינטרנט');
+    return;
+  }
+
+  const confirmed = await customConfirm(
+    'האם לשחזר את הנתונים מהענן?\n\nפעולה זו תחליף את הנתונים המקומיים בנתונים מהגיבוי האחרון בענן.',
+    'שחזור מהענן',
+    '☁️'
+  );
+  if (!confirmed) return;
+
+  showLoading();
+  try {
+    const success = await loadFromCloud(true); // Force load bypasses timestamp check
+    if (success) {
+      showToast('הנתונים שוחזרו בהצלחה מהענן');
+      renderAll();
+    } else {
+      showToast('לא נמצאו נתונים בענן לשחזור');
+    }
+  } finally {
+    hideLoading();
   }
 }
 
@@ -1680,13 +1733,16 @@ function showCorruptedDataBanner() {
   banner.innerHTML = `
     <div style="background:linear-gradient(135deg,#dc2626,#b91c1c);color:white;padding:16px 20px;text-align:center;position:fixed;top:0;left:0;right:0;z-index:9999;font-size:14px;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
       <div style="font-weight:700;margin-bottom:8px;">⚠️ נתונים פגומים - מצב קריאה בלבד</div>
-      <div style="font-size:12px;opacity:0.9;margin-bottom:12px;">לא ניתן לבצע שינויים. נא לייבא גיבוי לשחזור הנתונים.</div>
-      <button onclick="importData()" style="background:white;color:#dc2626;border:none;padding:8px 20px;border-radius:8px;font-weight:600;cursor:pointer;">📥 ייבוא גיבוי</button>
+      <div style="font-size:12px;opacity:0.9;margin-bottom:12px;">לא ניתן לבצע שינויים. נא לשחזר מהענן או לייבא גיבוי.</div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button onclick="recoverFromCloud()" style="background:white;color:#dc2626;border:none;padding:8px 20px;border-radius:8px;font-weight:600;cursor:pointer;">☁️ שחזור מהענן</button>
+        <button onclick="importData()" style="background:rgba(255,255,255,0.2);color:white;border:2px solid white;padding:8px 20px;border-radius:8px;font-weight:600;cursor:pointer;">📥 ייבוא גיבוי</button>
+      </div>
     </div>
   `;
   document.body.insertBefore(banner, document.body.firstChild);
   // Add padding to body to prevent content from being hidden under banner
-  document.body.style.paddingTop = '100px';
+  document.body.style.paddingTop = '120px';
 }
 
 // Returns true if save succeeded, false if failed
@@ -2111,15 +2167,15 @@ function renderPage(page) {
 function openModal(id) { document.getElementById(id).classList.add('show'); }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
-// Double-click prevention
+// Double-click prevention with proper async support
 let isSaving = false;
-function preventDoubleClick(fn) {
+async function preventDoubleClick(fn) {
   if (isSaving) return;
   isSaving = true;
   try {
-    fn();
+    await fn(); // Properly await async functions
   } finally {
-    setTimeout(() => { isSaving = false; }, 2000); // Increased from 500ms for async safety
+    isSaving = false; // Release only when function completes
   }
 }
 function adjustCount(id,d) { const el=document.getElementById(id); let v=parseInt(el.textContent)+d; if(v<0)v=0; el.textContent=v; }
@@ -2330,38 +2386,68 @@ async function sendAllTomorrowReminders() {
     return;
   }
 
-  // If more than 3 students, offer different options
-  if(tmrwLessons.length > 3) {
-    const choice = await customConfirm(
-      `יש ${tmrwLessons.length} תלמידים לשליחת תזכורת.\n\n` +
-      `לחץ "אישור" לשליחה אחד-אחד (תצטרך לאשר כל חלון)\n` +
-      `או "ביטול" לשלוח ידנית מרשימת השיעורים.`,
-      'שליחת תזכורות', '📨'
-    );
-    if(!choice) return;
-  } else {
-    const confirmed = await customConfirm(`לשלוח תזכורת ל-${tmrwLessons.length} תלמידים?`, 'שליחת תזכורות', '📨');
-    if(!confirmed) return;
-  }
-
-  // Send one by one with user interaction
-  let sentCount = 0;
-  for(let i = 0; i < tmrwLessons.length; i++) {
-    const l = tmrwLessons[i];
+  if(tmrwLessons.length === 1) {
+    // Single student - can open directly with user gesture
+    const l = tmrwLessons[0];
     const s = students.find(x=>x.id===l.studentId);
-    if(!s) continue;
-
+    if(!s) return;
     const msg = buildReminderMsg(s.name, l.date, l.time, l.duration, l.address);
     window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`, '_blank');
-    sentCount++;
-
-    // Wait a bit between opens to avoid blocking
-    if(i < tmrwLessons.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 1200));
-    }
+    showToast('נפתח חלון וואטסאפ');
+    return;
   }
 
-  showToast(`✅ נפתחו ${sentCount} חלונות וואטסאפ`);
+  // Multiple students - show modal with individual buttons (each click = user gesture)
+  showReminderList(tmrwLessons);
+}
+
+// Show modal with individual reminder buttons - each button click is a user gesture
+function showReminderList(tmrwLessons) {
+  let html = `
+    <div style="max-height:60vh;overflow-y:auto;">
+      <p style="margin-bottom:16px;color:var(--text-dim);font-size:13px;">לחץ על כל תלמיד לשליחת תזכורת (כל לחיצה פותחת חלון וואטסאפ):</p>
+  `;
+
+  tmrwLessons.forEach((l) => {
+    const s = students.find(x => x.id === l.studentId);
+    if (!s) return;
+    html += `
+      <div class="reminder-item" id="reminder-${l.id}" style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--card);border-radius:10px;margin-bottom:8px;border:1px solid var(--border);">
+        <div>
+          <div style="font-weight:600;">${escHtml(s.name)}</div>
+          <div style="font-size:12px;color:var(--text-dim);">${l.time} | ${l.duration} דקות</div>
+        </div>
+        <button onclick="sendSingleReminder('${l.id}')" class="btn-reminder" style="background:var(--accent);color:white;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:500;">
+          📱 שלח
+        </button>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+
+  document.getElementById('reminderListContent').innerHTML = html;
+  openModal('modalReminderList');
+}
+
+function sendSingleReminder(lid) {
+  const l = lessons.find(x => x.id === lid);
+  if (!l) return;
+  const s = students.find(x => x.id === l.studentId);
+  if (!s) return;
+
+  const msg = buildReminderMsg(s.name, l.date, l.time, l.duration, l.address);
+  window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`, '_blank');
+
+  // Mark as sent visually
+  const item = document.getElementById(`reminder-${lid}`);
+  if (item) {
+    const btn = item.querySelector('.btn-reminder');
+    btn.textContent = '✓ נשלח';
+    btn.style.background = 'var(--success)';
+    btn.disabled = true;
+    item.style.opacity = '0.6';
+  }
 }
 function updateWaPreview() {
   const sid=document.getElementById('lessonStudent').value, d=document.getElementById('lessonDate').value, t=document.getElementById('lessonTime').value, dur=document.getElementById('lessonDuration').value, addr=document.getElementById('lessonAddress').value.trim();
@@ -2520,35 +2606,76 @@ async function deleteLesson(lid) {
 async function offerSlotNotification(lesson, eligibleStudents) {
   const count = eligibleStudents.length;
 
-  if(count > 3) {
-    const choice = await customConfirm(
-      `התפנה מקום ביומן!\n\nיש ${count} תלמידים שמחפשים שעות.\n\n` +
-      `לחץ "אישור" לשליחה אחד-אחד.`,
-      'הודעה על מקום פנוי', '📅'
-    );
-    if(!choice) return;
-  } else {
+  if (count === 1) {
+    // Single student - can send directly with user gesture
     const confirmed = await customConfirm(
-      `התפנה מקום ביומן!\n\nיש ${count} תלמידים שמחפשים שעות.\n\nלשלוח להם הודעה?`,
+      `התפנה מקום ביומן!\n\nלשלוח הודעה ל-${eligibleStudents[0].name}?`,
       'הודעה על מקום פנוי', '📅'
     );
-    if(!confirmed) return;
+    if (!confirmed) return;
+
+    const msg = buildSlotAvailableMsg(lesson.date, lesson.time, lesson.duration, lesson.address);
+    window.open(`https://wa.me/${formatPhone(eligibleStudents[0].phone)}?text=${encodeURIComponent(msg)}`, '_blank');
+    showToast('נפתח חלון וואטסאפ');
+    return;
   }
 
+  // Multiple students - show modal with individual buttons
+  const confirmed = await customConfirm(
+    `התפנה מקום ביומן!\n\nיש ${count} תלמידים שמחפשים שעות.\n\nלהציג את הרשימה לשליחה?`,
+    'הודעה על מקום פנוי', '📅'
+  );
+  if (!confirmed) return;
+
+  showSlotNotificationList(lesson, eligibleStudents);
+}
+
+// Show modal with individual slot notification buttons - each button click is a user gesture
+function showSlotNotificationList(lesson, eligibleStudents) {
   const msg = buildSlotAvailableMsg(lesson.date, lesson.time, lesson.duration, lesson.address);
+  const encodedMsg = encodeURIComponent(msg);
 
-  let sentCount = 0;
-  for(let i = 0; i < eligibleStudents.length; i++) {
-    const st = eligibleStudents[i];
-    window.open(`https://wa.me/${formatPhone(st.phone)}?text=${encodeURIComponent(msg)}`, '_blank');
-    sentCount++;
+  let html = `
+    <div style="max-height:60vh;overflow-y:auto;">
+      <div style="margin-bottom:16px;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--border);">
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:4px;">מקום פנוי:</div>
+        <div style="font-weight:600;">${formatDateHeb(lesson.date)} | ${lesson.time} | ${lesson.duration} דקות</div>
+      </div>
+      <p style="margin-bottom:12px;color:var(--text-dim);font-size:13px;">לחץ על כל תלמיד לשליחת הודעה:</p>
+  `;
 
-    if(i < eligibleStudents.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 1200));
-    }
+  eligibleStudents.forEach((s) => {
+    html += `
+      <div class="slot-item" id="slot-${s.id}" style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--card);border-radius:10px;margin-bottom:8px;border:1px solid var(--border);">
+        <div style="font-weight:600;">${escHtml(s.name)}</div>
+        <button onclick="sendSlotNotification('${s.id}', '${encodedMsg}')" class="btn-slot" style="background:var(--accent);color:white;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:500;">
+          📱 שלח
+        </button>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+
+  document.getElementById('slotListContent').innerHTML = html;
+  openModal('modalSlotList');
+}
+
+function sendSlotNotification(sid, encodedMsg) {
+  const s = students.find(x => x.id === sid);
+  if (!s) return;
+
+  window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodedMsg}`, '_blank');
+
+  // Mark as sent visually
+  const item = document.getElementById(`slot-${sid}`);
+  if (item) {
+    const btn = item.querySelector('.btn-slot');
+    btn.textContent = '✓ נשלח';
+    btn.style.background = 'var(--success)';
+    btn.disabled = true;
+    item.style.opacity = '0.6';
   }
-
-  showToast(`✅ נפתחו ${sentCount} חלונות וואטסאפ`);
 }
 
 // Build message for available slot
@@ -2627,7 +2754,7 @@ async function deleteStudent(sid) {
 
   // Check for future lessons - use real today
   const today = getRealTodayStr();
-  const futureLessons = lessons.filter(l => l.studentId === sid && l.date >= today);
+  const futureLessons = lessons.filter(l => l.studentId === sid && l.date >= today && l.status === 'scheduled');
 
   let confirmMsg = `למחוק את ${s.name}? כל השיעורים והתשלומים שלו יימחקו גם.`;
   if(futureLessons.length > 0) {
@@ -2635,6 +2762,18 @@ async function deleteStudent(sid) {
   }
   const confirmed = await customConfirm(confirmMsg, 'מחיקת תלמיד', '🗑️');
   if(!confirmed) return;
+
+  // Ask about notifications BEFORE delete (so undo toast gets full 5 seconds)
+  let shouldNotify = false;
+  const studentsWantingExtra = students.filter(st => st.id !== sid && st.wantsExtraLessons);
+
+  if (futureLessons.length > 0 && studentsWantingExtra.length > 0) {
+    shouldNotify = await customConfirm(
+      `יתפנו ${futureLessons.length} מקומות ביומן.\n\nלשלוח הודעה ל-${studentsWantingExtra.length} תלמידים שמחפשים שעות?`,
+      'הודעה על מקומות פנויים',
+      '📨'
+    );
+  }
 
   // Save all student data for undo
   const studentLessons = lessons.filter(l => l.studentId === sid);
@@ -2650,20 +2789,13 @@ async function deleteStudent(sid) {
   if(!saveData()) return; // Stop if save failed
   closeModal('modalStudentDetail');
 
-  // Show undo option
+  // Show undo option - now guaranteed to be visible for full 5 seconds
   showUndoToast(`${s.name} נמחק`, 'students', deletedStudentData);
   renderAll();
 
-  // Offer to notify about available slots
-  if(deletedLessons.length > 0) {
-    const studentsWantingExtra = students.filter(st => st.wantsExtraLessons);
-    if(studentsWantingExtra.length > 0) {
-      const notifyConfirmed = await customConfirm(`התפנו ${deletedLessons.length} מקומות ביומן.\n\nלשלוח הודעה ל-${studentsWantingExtra.length} תלמידים שמחפשים שעות?`, 'הודעה על מקומות פנויים', '📨');
-      if(notifyConfirmed) {
-        // Notify about the first available slot
-        offerSlotNotification(deletedLessons[0], studentsWantingExtra);
-      }
-    }
+  // Send notifications if user agreed (happens AFTER undo is shown)
+  if (shouldNotify && deletedLessons.length > 0) {
+    showSlotNotificationList(deletedLessons[0], studentsWantingExtra);
   }
 }
 function openStudentDetail(sid) {
@@ -2752,11 +2884,14 @@ function renderCalendar() {
     days.push(d);
   }
 
-  // Find min/max hours from lessons in this week
+  // Find min/max hours from VISIBLE lessons in this week
+  // Exclude cancelled and no-show lessons (same filter as rendering)
   let minHour = DEFAULT_START, maxHour = DEFAULT_END;
   const weekDates = days.map(d => dateStr(d));
   lessons.forEach(l => {
     if (!weekDates.includes(l.date)) return;
+    // Skip cancelled and no-show - they don't render, shouldn't affect hour range
+    if (l.status === 'cancelled' || l.status === 'no-show') return;
     const [lh] = l.time.split(':').map(Number);
     const endHour = Math.ceil((lh * 60 + (l.duration || 40)) / 60);
     if (lh < minHour) minHour = lh;
