@@ -1285,6 +1285,51 @@ if (!navigator.onLine) {
   document.body.classList.add('is-offline');
 }
 
+// Multi-tab sync: reload data when another tab modifies localStorage
+window.addEventListener('storage', (e) => {
+  if (e.key === 'drv_students' || e.key === 'drv_lessons' || e.key === 'drv_payments') {
+    try {
+      const rawStudents = JSON.parse(localStorage.getItem('drv_students') || '[]');
+      const rawLessons = JSON.parse(localStorage.getItem('drv_lessons') || '[]');
+      const rawPayments = JSON.parse(localStorage.getItem('drv_payments') || '[]');
+
+      if (Array.isArray(rawStudents) && Array.isArray(rawLessons) && Array.isArray(rawPayments)) {
+        const validStudentIds = new Set();
+        const newStudents = [];
+        for (const s of rawStudents) {
+          const validated = validateStudent(s);
+          if (validated) { newStudents.push(validated); validStudentIds.add(validated.id); }
+        }
+        const newLessons = [];
+        for (const l of rawLessons) {
+          const validated = validateLesson(l, validStudentIds);
+          if (validated) newLessons.push(validated);
+        }
+        const newPayments = [];
+        for (const p of rawPayments) {
+          const validated = validatePayment(p, validStudentIds);
+          if (validated) newPayments.push(validated);
+        }
+        students = newStudents;
+        lessons = newLessons;
+        payments = newPayments;
+        invalidateBalanceCache();
+        renderAll();
+      }
+    } catch (err) {
+      console.error('Multi-tab sync error:', err);
+    }
+  } else if (e.key === 'drv_vehicle' || e.key === 'drv_km_history') {
+    try {
+      vehicleData = JSON.parse(localStorage.getItem('drv_vehicle') || 'null');
+      kmHistory = JSON.parse(localStorage.getItem('drv_km_history') || '[]');
+      if (currentPage === 'vehicle') renderVehiclePage();
+    } catch (err) {
+      console.error('Multi-tab vehicle sync error:', err);
+    }
+  }
+});
+
 // Show sync indicator
 function showSyncIndicator(status, text) {
   const indicator = document.getElementById('syncIndicator');
@@ -1610,12 +1655,12 @@ function customConfirm(message, title = 'אישור', icon = '⚠️') {
 
 document.getElementById('confirmYes').addEventListener('click', () => {
   document.getElementById('confirmOverlay').classList.remove('show');
-  if (confirmResolve) confirmResolve(true);
+  if (confirmResolve) { confirmResolve(true); confirmResolve = null; }
 });
 
 document.getElementById('confirmNo').addEventListener('click', () => {
   document.getElementById('confirmOverlay').classList.remove('show');
-  if (confirmResolve) confirmResolve(false);
+  if (confirmResolve) { confirmResolve(false); confirmResolve = null; }
 });
 
 // ============================================================
@@ -1647,10 +1692,10 @@ function showUndoToast(message, type, item) {
   // Store the deleted item for undo
   deletedItems[type].push(item);
 
-  // Auto-hide after 5 seconds
+  // Auto-hide after 5 seconds - clear ALL types to prevent orphaned data
   undoTimeout = setTimeout(() => {
     toast.classList.remove('show');
-    deletedItems[type] = []; // Clear after timeout
+    deletedItems = { students: [], lessons: [], payments: [] };
   }, 5000);
 }
 
@@ -1722,13 +1767,36 @@ let students, lessons, payments;
 let dataCorrupted = false;
 
 try {
-  students = JSON.parse(localStorage.getItem('drv_students') || '[]');
-  lessons = JSON.parse(localStorage.getItem('drv_lessons') || '[]');
-  payments = JSON.parse(localStorage.getItem('drv_payments') || '[]');
+  const rawStudents = JSON.parse(localStorage.getItem('drv_students') || '[]');
+  const rawLessons = JSON.parse(localStorage.getItem('drv_lessons') || '[]');
+  const rawPayments = JSON.parse(localStorage.getItem('drv_payments') || '[]');
 
   // Basic validation
-  if (!Array.isArray(students) || !Array.isArray(lessons) || !Array.isArray(payments)) {
+  if (!Array.isArray(rawStudents) || !Array.isArray(rawLessons) || !Array.isArray(rawPayments)) {
     throw new Error('Invalid data format');
+  }
+
+  // Per-record validation to prevent XSS from tampered localStorage
+  const validStudentIds = new Set();
+  students = [];
+  for (const s of rawStudents) {
+    const validated = validateStudent(s);
+    if (validated) {
+      students.push(validated);
+      validStudentIds.add(validated.id);
+    }
+  }
+
+  lessons = [];
+  for (const l of rawLessons) {
+    const validated = validateLesson(l, validStudentIds);
+    if (validated) lessons.push(validated);
+  }
+
+  payments = [];
+  for (const p of rawPayments) {
+    const validated = validatePayment(p, validStudentIds);
+    if (validated) payments.push(validated);
   }
 } catch(e) {
   dataCorrupted = true;
@@ -1952,7 +2020,7 @@ function validateLesson(obj, validStudentIds) {
     studentName: sanitizeString(obj.studentName || '', 100),
     date: date,
     time: time,
-    duration: (typeof obj.duration === 'number' && obj.duration >= 15 && obj.duration <= 480) ? obj.duration : 45,
+    duration: (typeof obj.duration === 'number' && obj.duration >= 15 && obj.duration <= 480) ? obj.duration : 40,
     address: sanitizeString(obj.address || '', 200),
     // Don't default priceAtTime to 0 - leave undefined so it falls back to student price
     priceAtTime: (typeof obj.priceAtTime === 'number' && obj.priceAtTime >= 0 && obj.priceAtTime <= 10000) ? obj.priceAtTime : undefined,
@@ -2306,7 +2374,14 @@ async function saveNewStudent() {
     if(s) {
       s.name=name; s.phone=phone; s.price=price; s.notes=notes; s.wantsExtraLessons=wantsExtra; s.totalLessons=totalLessons;
       // Calculate initialCompletedLessons so total matches desired
-      const doneInApp = lessons.filter(l => l.studentId === editingStudentId && l.status === 'completed').length;
+      // Must match getCompletedLessonsCount logic: completed + legacy past lessons
+      const editToday = getRealTodayStr();
+      const doneInApp = lessons.filter(l => {
+        if (l.studentId !== editingStudentId) return false;
+        if (l.status === 'completed') return true;
+        if (!l.status && l.date < editToday) return true;
+        return false;
+      }).length;
       s.initialCompletedLessons = Math.max(0, desiredCompleted - doneInApp);
       // Update cached name in lessons/payments
       lessons.filter(l=>l.studentId===editingStudentId).forEach(l=>l.studentName=name);
