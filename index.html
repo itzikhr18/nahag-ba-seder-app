@@ -196,7 +196,9 @@
   /* ===== MODAL ===== */
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: flex-end; justify-content: center; backdrop-filter: blur(4px); }
   .modal-overlay.show { display: flex; }
-  .modal { background: var(--surface); border-radius: var(--radius) var(--radius) 0 0; padding: 20px 18px 28px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; -webkit-overflow-scrolling: touch; animation: slideUp 0.3s ease; }
+  /* Use dvh for better mobile viewport handling, with safe-area padding for notched phones */
+  .modal { background: var(--surface); border-radius: var(--radius) var(--radius) 0 0; padding: 20px 18px calc(28px + env(safe-area-inset-bottom, 0px)); width: 100%; max-width: 600px; max-height: calc(100dvh - 60px); max-height: calc(100vh - 60px); overflow-y: auto; -webkit-overflow-scrolling: touch; animation: slideUp 0.3s ease; }
+  @supports (max-height: 100dvh) { .modal { max-height: calc(100dvh - 60px); } }
   @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
   .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 14px; }
   .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
@@ -1123,17 +1125,16 @@
 
 <script>
 // ============================================================
-// LICENSE SYSTEM (with hashed codes for security)
+// LICENSE SYSTEM (with hashed codes and integrity verification)
 // ============================================================
-// פונקציית Hash פשוטה - הופכת קוד לערך מוצפן
+// Hash function for license codes
 function hashCode(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
+    hash = hash & hash;
   }
-  // Add salt and secondary hash for better security
   const salted = 'NBS_' + Math.abs(hash).toString(16) + '_DRV';
   let hash2 = 5381;
   for (let i = 0; i < salted.length; i++) {
@@ -1142,9 +1143,29 @@ function hashCode(str) {
   return Math.abs(hash2).toString(36).toUpperCase();
 }
 
-// קודי הפעלה מוצפנים - להוספת קוד חדש:
-// 1. הפעל בקונסול: hashCode('NAHAG-XXX')
-// 2. הוסף את התוצאה למטה עם שם המורה
+// License integrity signature - detects manual localStorage tampering
+function createLicenseSignature(hash, name, timestamp) {
+  const payload = `${hash}:${name}:${timestamp}:nahag_integrity_2024`;
+  let sig = 0;
+  for (let i = 0; i < payload.length; i++) {
+    sig = ((sig << 5) - sig + payload.charCodeAt(i)) | 0;
+  }
+  return Math.abs(sig).toString(36);
+}
+
+function verifyLicenseIntegrity() {
+  const hash = localStorage.getItem('drv_license_hash');
+  const name = localStorage.getItem('drv_licensed_name');
+  const timestamp = localStorage.getItem('drv_license_activated');
+  const signature = localStorage.getItem('drv_license_sig');
+
+  if (!hash || !name || !timestamp || !signature) return false;
+
+  const expectedSig = createLicenseSignature(hash, name, timestamp);
+  return signature === expectedSig;
+}
+
+// Valid license codes (hashed)
 const VALID_LICENSES = {
   'MZHCWP': 'מורה לדוגמה',       // NAHAG-001
   'MYRXUG': 'מורה נהיגה 2',      // NAHAG-002
@@ -1152,7 +1173,6 @@ const VALID_LICENSES = {
   'NCWB3G': 'מורה נהיגה 4',      // NAHAG-004
   'NC6W17': 'מורה נהיגה 5',      // NAHAG-005
   '1F70W2A': 'אבי אלחרר',        // NAHAG-AVI
-  // להוספת קודים: hashCode('CODE') בקונסול ← הוסף תוצאה כאן
 };
 
 let currentLicense = null;
@@ -1162,8 +1182,20 @@ function checkLicense() {
   const savedHash = localStorage.getItem('drv_license_hash');
   const savedName = localStorage.getItem('drv_licensed_name');
 
-  // Check new hash-based license
+  // Check hash-based license with integrity verification
   if (savedHash && VALID_LICENSES[savedHash]) {
+    // Verify integrity signature to detect tampering
+    if (!verifyLicenseIntegrity()) {
+      console.warn('License integrity check failed - possible tampering detected');
+      // Clear invalid license data
+      localStorage.removeItem('drv_license_hash');
+      localStorage.removeItem('drv_licensed_name');
+      localStorage.removeItem('drv_license_activated');
+      localStorage.removeItem('drv_license_sig');
+      showLicenseScreen();
+      return false;
+    }
+
     currentLicense = savedHash;
     licensedName = savedName || VALID_LICENSES[savedHash];
     hideLicenseScreen();
@@ -1171,15 +1203,22 @@ function checkLicense() {
     return true;
   }
 
-  // Migrate old plain-text license to hash
+  // Migrate old plain-text license to hash (with new integrity)
   const oldLicense = localStorage.getItem('drv_license');
   if (oldLicense) {
     const oldHash = hashCode(oldLicense.toUpperCase());
     if (VALID_LICENSES[oldHash]) {
+      const timestamp = Date.now().toString();
+      const signature = createLicenseSignature(oldHash, VALID_LICENSES[oldHash], timestamp);
+
       localStorage.setItem('drv_license_hash', oldHash);
-      localStorage.removeItem('drv_license'); // Clean up old key
+      localStorage.setItem('drv_licensed_name', VALID_LICENSES[oldHash]);
+      localStorage.setItem('drv_license_activated', timestamp);
+      localStorage.setItem('drv_license_sig', signature);
+      localStorage.removeItem('drv_license');
+
       currentLicense = oldHash;
-      licensedName = savedName || VALID_LICENSES[oldHash];
+      licensedName = VALID_LICENSES[oldHash];
       hideLicenseScreen();
       updateLicensedBadge();
       return true;
@@ -1205,18 +1244,26 @@ function activateLicense() {
   const codeHash = hashCode(code);
 
   if (VALID_LICENSES[codeHash]) {
-    // קוד תקין
+    // Valid license code
     currentLicense = codeHash;
     licensedName = VALID_LICENSES[codeHash];
+
+    // Create integrity signature
+    const timestamp = Date.now().toString();
+    const signature = createLicenseSignature(codeHash, licensedName, timestamp);
+
     localStorage.setItem('drv_license_hash', codeHash);
     localStorage.setItem('drv_licensed_name', licensedName);
+    localStorage.setItem('drv_license_activated', timestamp);
+    localStorage.setItem('drv_license_sig', signature);
+
     error.classList.remove('show');
     hideLicenseScreen();
     updateLicensedBadge();
     showToast('✅ האפליקציה הופעלה בהצלחה!');
     renderAll();
   } else {
-    // קוד לא תקין
+    // Invalid license code
     error.classList.add('show');
     input.style.borderColor = 'var(--danger)';
     setTimeout(() => { input.style.borderColor = ''; }, 2000);
@@ -1250,6 +1297,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'Enter') activateLicense();
     });
   }
+
+  // Set up form dirty tracking for all modal inputs
+  document.querySelectorAll('.modal input, .modal textarea, .modal select').forEach(el => {
+    el.addEventListener('input', markFormDirty);
+    el.addEventListener('change', markFormDirty);
+  });
 });
 
 // ============================================================
@@ -1261,14 +1314,39 @@ let syncInProgress = false;
 let pendingSync = false;
 let lastSyncTime = null;
 
+// Generate or retrieve unique device ID for conflict tracking
+function getDeviceId() {
+  let deviceId = localStorage.getItem('drv_device_id');
+  if (!deviceId) {
+    deviceId = 'device_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    localStorage.setItem('drv_device_id', deviceId);
+  }
+  return deviceId;
+}
+const currentDeviceId = getDeviceId();
+
 // Offline detection
-window.addEventListener('online', () => {
+window.addEventListener('online', async () => {
   isOnline = true;
   document.getElementById('offlineBanner').classList.remove('show');
   document.body.classList.remove('is-offline');
   showToast('✅ חיבור לאינטרנט חזר');
-  // Sync pending changes
-  if (firebaseUserId) syncToCloud();
+
+  // If cloud load failed before, try again now that we're online
+  if (cloudLoadFailed && firebaseUserId) {
+    const result = await loadFromCloud();
+    if (result === 'loaded') {
+      cloudLoadFailed = false;
+      showToast('☁️ נתונים נטענו מהענן');
+      renderAll();
+    } else if (result === 'not_needed') {
+      cloudLoadFailed = false;
+      syncToCloud();
+    }
+    // If still error, cloudLoadFailed stays true and sync stays blocked
+  } else if (firebaseUserId) {
+    syncToCloud();
+  }
 });
 
 window.addEventListener('offline', () => {
@@ -1294,6 +1372,21 @@ function showSyncIndicator(status, text) {
   }
 }
 
+// Calculate approximate document size in bytes
+function estimateDocumentSize() {
+  const data = {
+    students: students,
+    lessons: lessons,
+    payments: payments,
+    vehicleData: vehicleData || null,
+    kmHistory: kmHistory || []
+  };
+  return new Blob([JSON.stringify(data)]).size;
+}
+
+// Firestore document size limit (with safety margin)
+const FIRESTORE_DOC_LIMIT = 900 * 1024; // 900KB (leaving margin from 1MiB)
+
 // Sync data to Firebase
 async function syncToCloud() {
   // CRITICAL: Never sync corrupted data to cloud
@@ -1301,6 +1394,14 @@ async function syncToCloud() {
     console.warn('syncToCloud blocked: data is corrupted');
     return;
   }
+
+  // CRITICAL: Don't sync if cloud load failed - prevents overwriting good cloud data
+  if (cloudLoadFailed) {
+    console.warn('syncToCloud blocked: cloud load failed, refusing to overwrite');
+    showSyncIndicator('error', '⚠️ סנכרון חסום - בדוק חיבור');
+    return;
+  }
+
   if (!window.firebaseReady || !firebaseUserId || !isOnline) {
     pendingSync = true;
     return;
@@ -1310,11 +1411,63 @@ async function syncToCloud() {
     return;
   }
 
+  // Check document size before syncing
+  const docSize = estimateDocumentSize();
+  if (docSize > FIRESTORE_DOC_LIMIT) {
+    console.error('Document too large:', docSize, 'bytes');
+    showSyncIndicator('error', '⚠️ נתונים גדולים מדי לסנכרון');
+    showToast('⚠️ כמות הנתונים גדולה מדי לסנכרון לענן. נא לייצא גיבוי מקומי.');
+    return;
+  }
+
+  // Warn if approaching limit
+  if (docSize > FIRESTORE_DOC_LIMIT * 0.8) {
+    console.warn('Document size approaching limit:', docSize, 'bytes');
+  }
+
   syncInProgress = true;
   showSyncIndicator('syncing', 'מסנכרן...');
 
   try {
     const userDoc = window.firebaseDoc(window.firebaseDB, 'users', firebaseUserId);
+
+    // CONFLICT DETECTION: Check if cloud was updated since our last sync
+    const docSnap = await window.firebaseGetDoc(userDoc);
+    if (docSnap.exists()) {
+      const cloudData = docSnap.data();
+      const cloudTime = new Date(cloudData.lastUpdated || 0);
+      const lastLocalSync = new Date(localStorage.getItem('drv_last_cloud_sync') || 0);
+      const cloudDeviceId = cloudData.lastDeviceId;
+
+      // Skip conflict check if last update was from this same device
+      const isSameDevice = cloudDeviceId === currentDeviceId;
+
+      // If cloud is newer than our last sync from a different device, we have a conflict
+      if (cloudTime > lastLocalSync && lastLocalSync.getTime() > 0 && !isSameDevice) {
+        console.warn('Conflict detected: cloud updated by another device since last sync');
+        syncInProgress = false;
+
+        // Format conflict time
+        const conflictTimeStr = cloudTime.toLocaleString('he-IL');
+
+        // Show conflict warning to user
+        const overwrite = await customConfirm(
+          `נמצאו שינויים חדשים בענן ממכשיר אחר.\n\nעדכון אחרון בענן: ${conflictTimeStr}\n\nהאם להחליף את הענן בנתונים המקומיים?\n\n⚠️ פעולה זו תדרוס את השינויים מהמכשיר האחר.`,
+          'קונפליקט נתונים',
+          '⚠️'
+        );
+
+        if (!overwrite) {
+          showSyncIndicator('error', '⚠️ סנכרון בוטל');
+          showToast('סנכרון בוטל - השתמש ב"שחזור מהענן" לטעינת הנתונים החדשים');
+          return;
+        }
+
+        syncInProgress = true;
+        showSyncIndicator('syncing', 'מסנכרן...');
+      }
+    }
+
     await window.firebaseSetDoc(userDoc, {
       students: students,
       lessons: lessons,
@@ -1322,7 +1475,9 @@ async function syncToCloud() {
       vehicleData: vehicleData || null,
       kmHistory: kmHistory || [],
       lastUpdated: new Date().toISOString(),
-      appVersion: '2.0'
+      lastDeviceId: currentDeviceId,
+      appVersion: '2.1',
+      docSize: docSize // Track size for monitoring
     });
 
     lastSyncTime = new Date();
@@ -1390,9 +1545,16 @@ function validateCloudData(data) {
   };
 }
 
+// Track cloud load status for sync guard
+let cloudLoadFailed = false;
+let cloudLoadAttempted = false;
+
 // Load data from Firebase
+// Returns: 'loaded' = data loaded, 'not_needed' = local is newer, 'error' = failed
 async function loadFromCloud(forceLoad = false) {
-  if (!window.firebaseReady || !firebaseUserId) return false;
+  if (!window.firebaseReady || !firebaseUserId) return 'error';
+
+  cloudLoadAttempted = true;
 
   try {
     const userDoc = window.firebaseDoc(window.firebaseDB, 'users', firebaseUserId);
@@ -1437,14 +1599,22 @@ async function loadFromCloud(forceLoad = false) {
           // CRITICAL: Invalidate balance cache after data replacement
           invalidateBalanceCache();
 
-          return true;
+          cloudLoadFailed = false;
+          return 'loaded';
         }
       }
+      // Cloud exists but local is newer - OK to sync
+      cloudLoadFailed = false;
+      return 'not_needed';
     }
-    return false;
+    // No cloud document yet - OK to create
+    cloudLoadFailed = false;
+    return 'not_needed';
   } catch (err) {
     console.error('Load from cloud error:', err);
-    return false;
+    // CRITICAL: Mark as failed so syncToCloud won't overwrite
+    cloudLoadFailed = true;
+    return 'error';
   }
 }
 
@@ -1464,12 +1634,46 @@ async function recoverFromCloud() {
 
   showLoading();
   try {
-    const success = await loadFromCloud(true); // Force load bypasses timestamp check
-    if (success) {
+    const result = await loadFromCloud(true); // Force load bypasses timestamp check
+    if (result === 'loaded') {
+      // Recovery succeeded - reset the failure flag
+      cloudLoadFailed = false;
       showToast('הנתונים שוחזרו בהצלחה מהענן');
       renderAll();
+    } else if (result === 'error') {
+      showToast('שגיאה בטעינה מהענן - נא לנסות שוב');
     } else {
       showToast('לא נמצאו נתונים בענן לשחזור');
+    }
+  } finally {
+    hideLoading();
+  }
+}
+
+// Allow user to manually retry sync after cloud load failure
+async function retrySyncAfterFailure() {
+  if (!cloudLoadFailed) return;
+
+  const confirmed = await customConfirm(
+    'טעינה מהענן נכשלה קודם לכן. האם לנסות שוב?\n\nאם הענן לא ייטען כראוי, הנתונים המקומיים לא יסונכרנו.',
+    'נסיון חוזר',
+    '🔄'
+  );
+  if (!confirmed) return;
+
+  showLoading();
+  try {
+    const result = await loadFromCloud();
+    if (result === 'loaded') {
+      cloudLoadFailed = false;
+      showToast('☁️ נתונים נטענו מהענן');
+      renderAll();
+    } else if (result === 'not_needed') {
+      cloudLoadFailed = false;
+      showToast('סנכרון חוזר...');
+      syncToCloud();
+    } else {
+      showToast('עדיין לא מצליח להתחבר לענן');
     }
   } finally {
     hideLoading();
@@ -1489,13 +1693,17 @@ function initFirebaseAuth() {
       localStorage.setItem('drv_firebase_uid', user.uid);
 
       // Try to load from cloud
-      const loadedFromCloud = await loadFromCloud();
-      if (loadedFromCloud) {
+      const loadResult = await loadFromCloud();
+      if (loadResult === 'loaded') {
         showToast('☁️ נתונים נטענו מהענן');
         renderAll();
-      } else {
-        // Sync local to cloud
+      } else if (loadResult === 'not_needed') {
+        // Local is newer or cloud is empty - safe to sync
         syncToCloud();
+      } else {
+        // Error loading - DO NOT sync, show warning
+        console.warn('Cloud load failed - sync blocked to prevent data loss');
+        showToast('⚠️ שגיאה בטעינה מהענן - סנכרון מושהה');
       }
     } else {
       // Sign in anonymously
@@ -1763,7 +1971,7 @@ function showCorruptedDataBanner() {
   const banner = document.createElement('div');
   banner.id = 'corruptedBanner';
   banner.innerHTML = `
-    <div style="background:linear-gradient(135deg,#dc2626,#b91c1c);color:white;padding:16px 20px;text-align:center;position:fixed;top:0;left:0;right:0;z-index:9999;font-size:14px;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+    <div id="corruptedBannerInner" style="background:linear-gradient(135deg,#dc2626,#b91c1c);color:white;padding:16px 20px;text-align:center;position:fixed;top:0;left:0;right:0;z-index:9999;font-size:14px;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
       <div style="font-weight:700;margin-bottom:8px;">⚠️ נתונים פגומים - מצב קריאה בלבד</div>
       <div style="font-size:12px;opacity:0.9;margin-bottom:12px;">לא ניתן לבצע שינויים. נא לשחזר מהענן או לייבא גיבוי.</div>
       <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
@@ -1773,8 +1981,14 @@ function showCorruptedDataBanner() {
     </div>
   `;
   document.body.insertBefore(banner, document.body.firstChild);
-  // Add padding to body to prevent content from being hidden under banner
-  document.body.style.paddingTop = '120px';
+  // Dynamically calculate padding based on actual banner height
+  requestAnimationFrame(() => {
+    const bannerInner = document.getElementById('corruptedBannerInner');
+    if (bannerInner) {
+      const bannerHeight = bannerInner.offsetHeight;
+      document.body.style.paddingTop = (bannerHeight + 10) + 'px';
+    }
+  });
 }
 
 // Returns true if save succeeded, false if failed
@@ -1792,6 +2006,9 @@ function saveData() {
 
     // Invalidate balance cache on any data change
     invalidateBalanceCache();
+
+    // Clear form dirty state after successful save
+    clearFormDirty();
 
     // Backup to IndexedDB (async, non-blocking)
     saveToIndexedDB();
@@ -2196,8 +2413,64 @@ function renderPage(page) {
 // ============================================================
 // MODALS
 // ============================================================
-function openModal(id) { document.getElementById(id).classList.add('show'); }
-function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// Form dirty state tracking - warns users before losing unsaved changes
+let formDirty = false;
+let currentOpenModal = null;
+
+function markFormDirty() {
+  formDirty = true;
+}
+
+function clearFormDirty() {
+  formDirty = false;
+}
+
+// Warn on page refresh/close if form has unsaved changes
+window.addEventListener('beforeunload', (e) => {
+  if (formDirty) {
+    e.preventDefault();
+    e.returnValue = 'יש שינויים שלא נשמרו. האם לצאת?';
+    return e.returnValue;
+  }
+});
+
+// Handle browser back button
+window.addEventListener('popstate', (e) => {
+  if (currentOpenModal) {
+    e.preventDefault();
+    // Close current modal instead of navigating back
+    closeModal(currentOpenModal);
+    // Push state back to prevent actual navigation
+    history.pushState(null, '', location.href);
+  }
+});
+
+// Initialize history state for back button handling
+history.pushState(null, '', location.href);
+
+function openModal(id) {
+  document.getElementById(id).classList.add('show');
+  currentOpenModal = id;
+  // Push history state so back button closes modal
+  history.pushState({ modal: id }, '', location.href);
+}
+
+function closeModal(id, forceClear = false) {
+  // Warn if form is dirty (unless forceClear is true - used after successful save)
+  if (formDirty && !forceClear) {
+    const confirmClose = confirm('יש שינויים שלא נשמרו. האם לסגור?');
+    if (!confirmClose) return;
+  }
+  document.getElementById(id).classList.remove('show');
+  currentOpenModal = null;
+  clearFormDirty();
+}
+
+// Force close modal after successful save (no confirmation needed)
+function closeModalAfterSave(id) {
+  closeModal(id, true);
+}
 
 // Double-click prevention with proper async support
 let isSaving = false;
@@ -3732,11 +4005,35 @@ function checkVehicleReminders() {
   }
 }
 
+// Privacy warning for shared computers - shows once per device
+function showPrivacyWarning() {
+  const PRIVACY_KEY = 'drv_privacy_warning_shown';
+  if (localStorage.getItem(PRIVACY_KEY)) return;
+
+  // Show warning after a short delay to not interfere with app loading
+  setTimeout(async () => {
+    const acknowledged = await customConfirm(
+      '⚠️ הודעת פרטיות\n\n' +
+      'הנתונים באפליקציה (פרטי תלמידים, טלפונים, הערות) נשמרים בדפדפן של המכשיר הזה.\n\n' +
+      '• במחשב משותף - אנשים אחרים יכולים לראות את הנתונים\n' +
+      '• מומלץ להשתמש בפרופיל דפדפן אישי\n' +
+      '• זכור לייצא גיבוי באופן קבוע\n\n' +
+      'לחץ "אישור" אם הבנת.',
+      'אבטחת מידע',
+      '🔒'
+    );
+    if (acknowledged) {
+      localStorage.setItem(PRIVACY_KEY, new Date().toISOString());
+    }
+  }, 1500);
+}
+
 // INIT
 if (checkLicense()) {
   renderAll();
   checkBackupReminder();
   checkVehicleReminders();
+  showPrivacyWarning();
 }
 
 // ============================================================
