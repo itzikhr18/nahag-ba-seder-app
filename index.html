@@ -251,7 +251,9 @@
 
   .cal-event { position: absolute; right: 2px; left: 2px; background: linear-gradient(135deg, var(--accent), var(--accent-dim)); border-radius: 6px; padding: 3px 5px; font-size: 10px; font-weight: 600; color: #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; z-index: 5; line-height: 1.2; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
   .cal-event:hover { filter: brightness(1.1); transform: scale(1.02); }
+  .cal-event.completed { background: linear-gradient(135deg, #1a5c2e, #145224); opacity: 0.7; }
   .cal-event .ev-time { font-family: 'Rubik', sans-serif; font-size: 9px; opacity: 0.8; }
+  .cal-event .ev-status { font-size: 8px; opacity: 0.7; }
 
   .cal-scroll { max-height: min(480px, 60vh); overflow-y: auto; border-radius: var(--radius-sm); border: 1px solid var(--border); -webkit-overflow-scrolling: touch; }
 
@@ -1283,6 +1285,51 @@ if (!navigator.onLine) {
   document.body.classList.add('is-offline');
 }
 
+// Multi-tab sync: reload data when another tab modifies localStorage
+window.addEventListener('storage', (e) => {
+  if (e.key === 'drv_students' || e.key === 'drv_lessons' || e.key === 'drv_payments') {
+    try {
+      const rawStudents = JSON.parse(localStorage.getItem('drv_students') || '[]');
+      const rawLessons = JSON.parse(localStorage.getItem('drv_lessons') || '[]');
+      const rawPayments = JSON.parse(localStorage.getItem('drv_payments') || '[]');
+
+      if (Array.isArray(rawStudents) && Array.isArray(rawLessons) && Array.isArray(rawPayments)) {
+        const validStudentIds = new Set();
+        const newStudents = [];
+        for (const s of rawStudents) {
+          const validated = validateStudent(s);
+          if (validated) { newStudents.push(validated); validStudentIds.add(validated.id); }
+        }
+        const newLessons = [];
+        for (const l of rawLessons) {
+          const validated = validateLesson(l, validStudentIds);
+          if (validated) newLessons.push(validated);
+        }
+        const newPayments = [];
+        for (const p of rawPayments) {
+          const validated = validatePayment(p, validStudentIds);
+          if (validated) newPayments.push(validated);
+        }
+        students = newStudents;
+        lessons = newLessons;
+        payments = newPayments;
+        invalidateBalanceCache();
+        renderAll();
+      }
+    } catch (err) {
+      console.error('Multi-tab sync error:', err);
+    }
+  } else if (e.key === 'drv_vehicle' || e.key === 'drv_km_history') {
+    try {
+      vehicleData = JSON.parse(localStorage.getItem('drv_vehicle') || 'null');
+      kmHistory = JSON.parse(localStorage.getItem('drv_km_history') || '[]');
+      if (currentPage === 'vehicle') renderVehiclePage();
+    } catch (err) {
+      console.error('Multi-tab vehicle sync error:', err);
+    }
+  }
+});
+
 // Show sync indicator
 function showSyncIndicator(status, text) {
   const indicator = document.getElementById('syncIndicator');
@@ -1548,14 +1595,18 @@ async function saveToIndexedDB() {
     const transaction = idbDatabase.transaction(['backup'], 'readwrite');
     const store = transaction.objectStore('backup');
 
-    await store.put({
-      id: 'main',
-      students: students,
-      lessons: lessons,
-      payments: payments,
-      vehicleData: vehicleData,
-      kmHistory: kmHistory,
-      savedAt: new Date().toISOString()
+    await new Promise((resolve, reject) => {
+      const request = store.put({
+        id: 'main',
+        students: students,
+        lessons: lessons,
+        payments: payments,
+        vehicleData: vehicleData,
+        kmHistory: kmHistory,
+        savedAt: new Date().toISOString()
+      });
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
     });
   } catch (err) {
     console.error('IndexedDB save error:', err);
@@ -1590,6 +1641,10 @@ let confirmResolve = null;
 
 function customConfirm(message, title = 'אישור', icon = '⚠️') {
   return new Promise((resolve) => {
+    // If a previous confirm is still open, resolve it as false (cancelled)
+    if (confirmResolve) {
+      confirmResolve(false);
+    }
     confirmResolve = resolve;
     document.getElementById('confirmIcon').textContent = icon;
     document.getElementById('confirmTitle').textContent = title;
@@ -1600,12 +1655,12 @@ function customConfirm(message, title = 'אישור', icon = '⚠️') {
 
 document.getElementById('confirmYes').addEventListener('click', () => {
   document.getElementById('confirmOverlay').classList.remove('show');
-  if (confirmResolve) confirmResolve(true);
+  if (confirmResolve) { confirmResolve(true); confirmResolve = null; }
 });
 
 document.getElementById('confirmNo').addEventListener('click', () => {
   document.getElementById('confirmOverlay').classList.remove('show');
-  if (confirmResolve) confirmResolve(false);
+  if (confirmResolve) { confirmResolve(false); confirmResolve = null; }
 });
 
 // ============================================================
@@ -1637,10 +1692,10 @@ function showUndoToast(message, type, item) {
   // Store the deleted item for undo
   deletedItems[type].push(item);
 
-  // Auto-hide after 5 seconds
+  // Auto-hide after 5 seconds - clear ALL types to prevent orphaned data
   undoTimeout = setTimeout(() => {
     toast.classList.remove('show');
-    deletedItems[type] = []; // Clear after timeout
+    deletedItems = { students: [], lessons: [], payments: [] };
   }, 5000);
 }
 
@@ -1712,13 +1767,36 @@ let students, lessons, payments;
 let dataCorrupted = false;
 
 try {
-  students = JSON.parse(localStorage.getItem('drv_students') || '[]');
-  lessons = JSON.parse(localStorage.getItem('drv_lessons') || '[]');
-  payments = JSON.parse(localStorage.getItem('drv_payments') || '[]');
+  const rawStudents = JSON.parse(localStorage.getItem('drv_students') || '[]');
+  const rawLessons = JSON.parse(localStorage.getItem('drv_lessons') || '[]');
+  const rawPayments = JSON.parse(localStorage.getItem('drv_payments') || '[]');
 
   // Basic validation
-  if (!Array.isArray(students) || !Array.isArray(lessons) || !Array.isArray(payments)) {
+  if (!Array.isArray(rawStudents) || !Array.isArray(rawLessons) || !Array.isArray(rawPayments)) {
     throw new Error('Invalid data format');
+  }
+
+  // Per-record validation to prevent XSS from tampered localStorage
+  const validStudentIds = new Set();
+  students = [];
+  for (const s of rawStudents) {
+    const validated = validateStudent(s);
+    if (validated) {
+      students.push(validated);
+      validStudentIds.add(validated.id);
+    }
+  }
+
+  lessons = [];
+  for (const l of rawLessons) {
+    const validated = validateLesson(l, validStudentIds);
+    if (validated) lessons.push(validated);
+  }
+
+  payments = [];
+  for (const p of rawPayments) {
+    const validated = validatePayment(p, validStudentIds);
+    if (validated) payments.push(validated);
   }
 } catch(e) {
   dataCorrupted = true;
@@ -1896,11 +1974,18 @@ function validateStudent(obj) {
     ? Math.floor(initialDoneRaw)
     : 0;
 
+  // Preserve totalLessons (custom lesson count per student)
+  const totalLessonsRaw = (typeof obj.totalLessons === 'number') ? obj.totalLessons : undefined;
+  const totalLessons = (totalLessonsRaw !== undefined && Number.isFinite(totalLessonsRaw) && totalLessonsRaw >= 1 && totalLessonsRaw <= 100)
+    ? Math.floor(totalLessonsRaw)
+    : DEFAULT_TOTAL_LESSONS;
+
   return {
     id: id,
     name: name,
     phone: phone,
     price: (typeof obj.price === 'number' && obj.price >= 0 && obj.price <= 10000) ? obj.price : 170,
+    totalLessons: totalLessons,
     initialCompletedLessons: initialCompletedLessons,
     notes: sanitizeString(obj.notes || '', 1000),
     wantsExtraLessons: obj.wantsExtraLessons === true,
@@ -1935,7 +2020,7 @@ function validateLesson(obj, validStudentIds) {
     studentName: sanitizeString(obj.studentName || '', 100),
     date: date,
     time: time,
-    duration: (typeof obj.duration === 'number' && obj.duration >= 15 && obj.duration <= 480) ? obj.duration : 45,
+    duration: (typeof obj.duration === 'number' && obj.duration >= 15 && obj.duration <= 480) ? obj.duration : 40,
     address: sanitizeString(obj.address || '', 200),
     // Don't default priceAtTime to 0 - leave undefined so it falls back to student price
     priceAtTime: (typeof obj.priceAtTime === 'number' && obj.priceAtTime >= 0 && obj.priceAtTime <= 10000) ? obj.priceAtTime : undefined,
@@ -2289,7 +2374,14 @@ async function saveNewStudent() {
     if(s) {
       s.name=name; s.phone=phone; s.price=price; s.notes=notes; s.wantsExtraLessons=wantsExtra; s.totalLessons=totalLessons;
       // Calculate initialCompletedLessons so total matches desired
-      const doneInApp = lessons.filter(l => l.studentId === editingStudentId && l.status === 'completed').length;
+      // Must match getCompletedLessonsCount logic: completed + legacy past lessons
+      const editToday = getRealTodayStr();
+      const doneInApp = lessons.filter(l => {
+        if (l.studentId !== editingStudentId) return false;
+        if (l.status === 'completed') return true;
+        if (!l.status && l.date < editToday) return true;
+        return false;
+      }).length;
       s.initialCompletedLessons = Math.max(0, desiredCompleted - doneInApp);
       // Update cached name in lessons/payments
       lessons.filter(l=>l.studentId===editingStudentId).forEach(l=>l.studentName=name);
@@ -2592,6 +2684,63 @@ function sendLessonWa(lid) {
   const msg=buildWaMsg(s.name,l.date,l.time,l.duration,l.address);
   window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`,'_blank');
 }
+
+// Quick mark lesson as completed
+async function markLessonCompleted(lid) {
+  const lesson = lessons.find(l => l.id === lid);
+  if (!lesson) { showToast('⚠️ שיעור לא נמצא'); return; }
+
+  // Block marking future lessons as completed
+  const now = new Date();
+  const lessonDt = new Date(`${lesson.date}T${lesson.time}:00`);
+  if (lessonDt > now) {
+    showToast('⚠️ לא ניתן לסמן שיעור עתידי כ״בוצע״');
+    return;
+  }
+
+  if (lesson.status === 'completed') {
+    showToast('השיעור כבר מסומן כבוצע');
+    return;
+  }
+
+  lesson.status = 'completed';
+  // Store price at time of completion if not already stored
+  if (lesson.priceAtTime === undefined || lesson.priceAtTime === null) {
+    const s = students.find(x => x.id === lesson.studentId);
+    if (s) lesson.priceAtTime = s.price || 0;
+  }
+  if (!saveData()) {
+    lesson.status = 'scheduled'; // Revert on failure
+    return;
+  }
+  showToast('✅ שיעור סומן כבוצע');
+  renderAll();
+}
+
+// Quick mark lesson as no-show
+async function markLessonNoShow(lid) {
+  const lesson = lessons.find(l => l.id === lid);
+  if (!lesson) { showToast('⚠️ שיעור לא נמצא'); return; }
+
+  const now = new Date();
+  const lessonDt = new Date(`${lesson.date}T${lesson.time}:00`);
+  if (lessonDt > now) {
+    showToast('⚠️ לא ניתן לסמן שיעור עתידי כ״לא הגיע״');
+    return;
+  }
+
+  const confirmed = await customConfirm('לסמן את השיעור כ״לא הגיע״?', 'לא הגיע', '🚫');
+  if (!confirmed) return;
+
+  lesson.status = 'no-show';
+  if (!saveData()) {
+    lesson.status = 'scheduled'; // Revert on failure
+    return;
+  }
+  showToast('🚫 שיעור סומן כלא הגיע');
+  renderAll();
+}
+
 async function deleteLesson(lid) {
   const lesson = lessons.find(l=>l.id===lid);
   if(!lesson) return;
@@ -2890,10 +3039,24 @@ function openStudentDetail(sid) {
   }
   if(sLessons.length>0) {
     h += `<div class="section-title" style="margin-top:14px;">שיעורים אחרונים</div>`;
+    const detailNow = new Date();
+    const detailToday = getRealTodayStr();
+    const detailNowMin = detailNow.getHours() * 60 + detailNow.getMinutes();
     sLessons.slice(0,8).forEach(l=>{
+      // Status badge for lesson
+      const statusBadge = l.status === 'completed' ? '<span class="badge badge-green">בוצע</span>'
+        : l.status === 'cancelled' ? '<span class="badge badge-red">בוטל</span>'
+        : l.status === 'no-show' ? '<span class="badge badge-red">לא הגיע</span>'
+        : '<span class="badge badge-blue">מתוכנן</span>';
+      // Show complete button for past scheduled lessons
+      const [dlh, dlm] = l.time.split(':').map(Number);
+      const dlEnd = dlh * 60 + dlm + (l.duration || 40);
+      const dlCanComplete = l.status === 'scheduled' && ((l.date < detailToday) || (l.date === detailToday && dlEnd <= detailNowMin));
+      const dlCompleteBtn = dlCanComplete ? `<button class="icon-btn" onclick="event.stopPropagation();markLessonCompleted('${l.id}');closeModal('modalStudentDetail');setTimeout(()=>openStudentDetail('${s.id}'),300);" title="סמן כבוצע" style="color:var(--accent);">✓</button>` : '';
       h += `<div class="lesson-item" style="padding:8px 10px;">
         <div class="lesson-time" style="min-width:50px;padding:5px 7px;"><div class="lesson-hour" style="font-size:14px;">${l.time}</div></div>
-        <div class="lesson-details"><div style="font-size:13px;font-weight:500;">${formatDateHeb(l.date)}</div><div style="font-size:11px;color:var(--text-dim);">${l.duration} דק׳${l.address?' · '+escHtml(l.address):''}</div></div>
+        <div class="lesson-details"><div style="font-size:13px;font-weight:500;">${formatDateHeb(l.date)} ${statusBadge}</div><div style="font-size:11px;color:var(--text-dim);">${l.duration} דק׳${l.address?' · '+escHtml(l.address):''}</div></div>
+        ${dlCompleteBtn}
         <button class="icon-btn" onclick="closeModal('modalStudentDetail');openEditLessonModal('${l.id}')" title="עריכה" style="margin-right:auto;">✏️</button>
       </div>`;
     });
@@ -3002,7 +3165,7 @@ function renderCalendar() {
       const heightPx = Math.max(durSlots * 48, 22);
 
       const ev = document.createElement('div');
-      ev.className = 'cal-event';
+      ev.className = 'cal-event' + (l.status === 'completed' ? ' completed' : '');
       ev.style.top = topPx + 'px';
       ev.style.height = heightPx + 'px';
       if(overlapIdx > 0) {
@@ -3010,9 +3173,10 @@ function renderCalendar() {
         ev.style.opacity = '0.9';
         ev.style.borderRight = '2px solid #000';
       }
-      ev.innerHTML = `<div>${escHtml(l.studentName)}</div><div class="ev-time">${l.time}</div>`;
+      const statusIcon = l.status === 'completed' ? '✓ ' : '';
+      ev.innerHTML = `<div>${statusIcon}${escHtml(l.studentName)}</div><div class="ev-time">${l.time}</div>`;
       ev.onclick = (e) => { e.stopPropagation(); openEditLessonModal(l.id); };
-      ev.title = `${l.studentName} - ${l.time} (לחץ לעריכה)`;
+      ev.title = `${l.studentName} - ${l.time}${l.status === 'completed' ? ' (בוצע)' : ''} (לחץ לעריכה)`;
       cell.appendChild(ev);
     });
   });
@@ -3178,7 +3342,7 @@ function renderDashboard() {
   // Use real today, not working day - for consistency with header
   const td = getRealTodayStr();
   document.getElementById('statStudents').textContent = students.length;
-  document.getElementById('statLessonsToday').textContent = lessons.filter(l=>l.date===td).length;
+  document.getElementById('statLessonsToday').textContent = lessons.filter(l=>l.date===td && l.status !== 'cancelled' && l.status !== 'no-show').length;
 
   const totalDebt = students.filter(s=>getStudentBalance(s)<0).reduce((sum,s)=>sum+Math.abs(getStudentBalance(s)),0);
   const debtEl = document.getElementById('statDebtTotal');
@@ -3208,7 +3372,12 @@ function renderDashboard() {
     let h='';
     upcoming.forEach(l => {
       const tBadge = isToday(l.date)?'<span class="badge badge-green">היום</span>':'';
-      h += `<div class="lesson-item"><div class="lesson-time"><div class="lesson-hour">${l.time}</div><div class="lesson-date-small">${l.date.slice(5).replace('-','/')}</div></div><div class="lesson-details"><div class="lesson-student-name">${escHtml(l.studentName)} ${tBadge}</div><div class="lesson-info">${l.duration} דק׳${l.address?' · 📍 '+escHtml(l.address):''}</div></div><div class="lesson-actions"><button class="icon-btn" onclick="openEditLessonModal('${l.id}')" title="עריכה">✏️</button><button class="icon-btn wa" onclick="sendLessonWa('${l.id}')" title="וואטסאפ">💬</button><button class="icon-btn" onclick="deleteLesson('${l.id}')" title="מחיקה" style="color:var(--danger);">✕</button></div></div>`;
+      // Show "mark completed" button for lessons that can be completed (today's past lessons)
+      const [lhh, lmm] = l.time.split(':').map(Number);
+      const lessonEndMin = lhh * 60 + lmm + (l.duration || 40);
+      const canComplete = (l.date < realToday) || (l.date === realToday && lessonEndMin <= nowMin);
+      const completeBtn = canComplete ? `<button class="icon-btn" onclick="event.stopPropagation();markLessonCompleted('${l.id}')" title="סמן כבוצע" style="color:var(--accent);">✓</button>` : '';
+      h += `<div class="lesson-item"><div class="lesson-time"><div class="lesson-hour">${l.time}</div><div class="lesson-date-small">${l.date.slice(5).replace('-','/')}</div></div><div class="lesson-details"><div class="lesson-student-name">${escHtml(l.studentName)} ${tBadge}</div><div class="lesson-info">${l.duration} דק׳${l.address?' · 📍 '+escHtml(l.address):''}</div></div><div class="lesson-actions">${completeBtn}<button class="icon-btn" onclick="openEditLessonModal('${l.id}')" title="עריכה">✏️</button><button class="icon-btn wa" onclick="sendLessonWa('${l.id}')" title="וואטסאפ">💬</button><button class="icon-btn" onclick="deleteLesson('${l.id}')" title="מחיקה" style="color:var(--danger);">✕</button></div></div>`;
     });
     uc.innerHTML = h;
   }
@@ -3292,9 +3461,11 @@ function exportData() {
 
   localStorage.setItem('drv_last_backup_attempt', new Date().toISOString());
 
-  setTimeout(() => {
-    const ok = confirm(
-      '📥 האם הקובץ ירד ונשמר במכשיר?\n\nטיפ: באייפון חפש באפליקציית ״קבצים״ > ״הורדות״.'
+  setTimeout(async () => {
+    const ok = await customConfirm(
+      'האם הקובץ ירד ונשמר במכשיר?\n\nטיפ: באייפון חפש באפליקציית ״קבצים״ > ״הורדות״.',
+      'אישור גיבוי',
+      '📥'
     );
     if (ok) {
       localStorage.setItem('drv_last_backup', getRealTodayStr());
@@ -3749,10 +3920,11 @@ if ('serviceWorker' in navigator) {
         // Check for updates
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
-          newWorker.addEventListener('statechange', () => {
+          newWorker.addEventListener('statechange', async () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
               // New version available
-              if (confirm('גרסה חדשה זמינה! לרענן את האפליקציה?')) {
+              const shouldUpdate = await customConfirm('גרסה חדשה זמינה!\n\nלרענן את האפליקציה?', 'עדכון זמין', '🔄');
+              if (shouldUpdate) {
                 newWorker.postMessage('skipWaiting');
                 window.location.reload();
               }
