@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="נהג בסדר">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0f1117">
+<meta name="theme-color" content="#f5f7fa">
 <meta name="format-detection" content="telephone=no">
 <meta name="application-name" content="נהג בסדר">
 <meta name="description" content="אפליקציה לניהול תלמידים, שיעורים ותשלומים למורי נהיגה">
@@ -69,29 +69,29 @@
 </script>
 <style>
   :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --surface-hover: #222633;
-    --card: #1e2230;
-    --border: #2a2e3d;
+    --bg: #f5f7fa;
+    --surface: #ffffff;
+    --surface-hover: #f0f2f5;
+    --card: #ffffff;
+    --border: #e0e4ea;
     --accent: #22c55e;
     --accent-dim: #16a34a;
-    --accent-glow: rgba(34, 197, 94, 0.15);
+    --accent-glow: rgba(34, 197, 94, 0.10);
     --success: #22c55e;
     --whatsapp: #25D366;
     --whatsapp-dark: #128C7E;
-    --text: #e8eaed;
-    --text-dim: #8b8fa3;
-    --text-muted: #555a6e;
+    --text: #1a1d27;
+    --text-dim: #6b7080;
+    --text-muted: #9ca3af;
     --danger: #ef4444;
-    --danger-dim: rgba(239, 68, 68, 0.12);
-    --warning: #f59e0b;
-    --warning-dim: rgba(245, 158, 11, 0.12);
+    --danger-dim: rgba(239, 68, 68, 0.08);
+    --warning: #e89209;
+    --warning-dim: rgba(245, 158, 11, 0.08);
     --blue: #3b82f6;
-    --blue-dim: rgba(59, 130, 246, 0.12);
+    --blue-dim: rgba(59, 130, 246, 0.08);
     --radius: 14px;
     --radius-sm: 10px;
-    --shadow: 0 4px 24px rgba(0,0,0,0.3);
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -104,7 +104,7 @@
 
   /* ===== HEADER ===== */
   .header {
-    background: linear-gradient(135deg, var(--surface) 0%, #151825 100%);
+    background: linear-gradient(135deg, var(--surface) 0%, #eef1f5 100%);
     border-bottom: 1px solid var(--border);
     padding: 16px 20px;
     position: sticky; top: 0; z-index: 100;
@@ -134,7 +134,7 @@
   /* ===== STATS ===== */
   .stats-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px; }
   .stats-bar.four { grid-template-columns: repeat(4, 1fr); }
-  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 8px; text-align: center; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 8px; text-align: center; box-shadow: var(--shadow); }
   .stat-number { font-family: 'Rubik', sans-serif; font-size: 24px; font-weight: 700; color: var(--accent); line-height: 1; }
   .stat-number.red { color: var(--danger); }
   .stat-number.blue { color: var(--blue); }
@@ -194,7 +194,7 @@
   .empty-sub { font-size: 12px; color: var(--text-muted); }
 
   /* ===== MODAL ===== */
-  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: flex-end; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 200; align-items: flex-end; justify-content: center; backdrop-filter: blur(4px); }
   .modal-overlay.show { display: flex; }
   .modal { background: var(--surface); border-radius: var(--radius) var(--radius) 0 0; padding: 20px 18px 28px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; -webkit-overflow-scrolling: touch; animation: slideUp 0.3s ease; }
   @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -223,7 +223,7 @@
   .search-box .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 14px; }
 
   /* ===== WA PREVIEW ===== */
-  .wa-preview { background: #0b4f39; border-radius: var(--radius-sm); padding: 12px 14px; margin: 12px 0; font-size: 13px; line-height: 1.7; color: #e9f5e9; direction: rtl; white-space: pre-line; border: 1px solid #155e45; }
+  .wa-preview { background: #dcf8c6; border-radius: var(--radius-sm); padding: 12px 14px; margin: 12px 0; font-size: 13px; line-height: 1.7; color: #1a3a1a; direction: rtl; white-space: pre-line; border: 1px solid #b8e6a0; }
   .wa-preview-label { font-size: 11px; color: var(--text-dim); margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
 
   /* ===== COUNTER ===== */
@@ -249,9 +249,9 @@
   .cal-cell:hover { background: var(--surface-hover); }
   .cal-cell.today-col { background: rgba(34,197,94,0.04); }
 
-  .cal-event { position: absolute; right: 2px; left: 2px; background: linear-gradient(135deg, var(--accent), var(--accent-dim)); border-radius: 6px; padding: 3px 5px; font-size: 10px; font-weight: 600; color: #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; z-index: 5; line-height: 1.2; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+  .cal-event { position: absolute; right: 2px; left: 2px; background: linear-gradient(135deg, var(--accent), var(--accent-dim)); border-radius: 6px; padding: 3px 5px; font-size: 10px; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; z-index: 5; line-height: 1.2; box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
   .cal-event:hover { filter: brightness(1.1); transform: scale(1.02); }
-  .cal-event.completed { background: linear-gradient(135deg, #1a5c2e, #145224); opacity: 0.7; }
+  .cal-event.completed { background: linear-gradient(135deg, #8bc49a, #6dab7f); opacity: 0.7; }
   .cal-event .ev-time { font-family: 'Rubik', sans-serif; font-size: 9px; opacity: 0.8; }
   .cal-event .ev-status { font-size: 8px; opacity: 0.7; }
 
@@ -603,7 +603,7 @@
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.75);
+    background: rgba(0,0,0,0.35);
     z-index: 9999;
     align-items: center;
     justify-content: center;
@@ -632,7 +632,7 @@
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(15, 17, 23, 0.85);
+    background: rgba(245, 247, 250, 0.9);
     z-index: 9998;
     align-items: center;
     justify-content: center;
@@ -648,7 +648,7 @@
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
-  .loading-text { font-size: 14px; color: var(--text-dim); }
+  .loading-text { font-size: 14px; color: var(--text); }
 
   /* ===== UNDO TOAST ===== */
   .undo-toast {
@@ -740,6 +740,7 @@
       <button class="btn btn-primary" onclick="openNewLessonModal()">➕ קביעת שיעור חדש</button>
     </div>
     <div id="tomorrowLessons" style="margin-top:20px;"></div>
+    <div id="weeklyForecast" style="margin-top:20px;"></div>
     <div id="debtAlerts" style="margin-top:20px;"></div>
     <div style="margin-top:24px;display:flex;gap:8px;">
       <button class="btn btn-outline btn-sm" style="flex:1;" onclick="exportData()">📥 ייצוא גיבוי</button>
@@ -893,7 +894,7 @@
       </div>
       <div class="form-group">
         <label class="form-label">שעה *</label>
-        <input class="form-input" id="lessonTime" type="time">
+        <input class="form-input" id="lessonTime" type="text" inputmode="numeric" placeholder="00:00" maxlength="5" dir="ltr" style="text-align:center;font-family:'Rubik',sans-serif;font-size:18px;letter-spacing:2px;">
       </div>
       <div class="form-group">
         <label class="form-label">משך</label>
@@ -926,6 +927,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
         שמירה + וואטסאפ
       </button>
+      <button type="button" class="btn btn-outline" style="border-color:var(--blue);color:var(--blue);" onclick="preventDoubleClick(()=>saveLesson('sms'))">📱 שמירה + SMS (טלפון כשר)</button>
       <button type="button" class="btn btn-outline" onclick="closeModal('modalNewLesson')">ביטול</button>
     </div>
   </div>
@@ -2405,6 +2407,21 @@ async function saveNewStudent() {
 let lessonModalInitialized = false;
 let editingLessonId = null;
 
+// Auto-format time input (HH:MM)
+document.getElementById('lessonTime').addEventListener('input', function(e) {
+  let v = this.value.replace(/[^\d]/g, '');
+  if (v.length >= 3) v = v.slice(0,2) + ':' + v.slice(2,4);
+  this.value = v;
+});
+document.getElementById('lessonTime').addEventListener('blur', function() {
+  const parts = this.value.split(':');
+  if (parts.length === 2) {
+    let h = parseInt(parts[0]) || 0, m = parseInt(parts[1]) || 0;
+    if (h > 23) h = 23; if (m > 59) m = 59;
+    this.value = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+  }
+});
+
 function openNewLessonModal(prefillDate, prefillTime, editLessonId) {
   editingLessonId = editLessonId || null;
   const realToday = getRealTodayStr(); // Use real date, not working day
@@ -2541,8 +2558,11 @@ function showReminderList(tmrwLessons) {
           <div style="font-weight:600;">${escHtml(s.name)}</div>
           <div style="font-size:12px;color:var(--text-dim);">${l.time} | ${l.duration} דקות</div>
         </div>
-        <button onclick="sendSingleReminder('${l.id}')" class="btn-reminder" style="background:var(--accent);color:white;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:500;">
-          📱 שלח
+        <button onclick="sendSingleReminder('${l.id}')" class="btn-reminder" style="background:var(--accent);color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:500;font-size:12px;">
+          💬 WA
+        </button>
+        <button onclick="sendReminderSms('${l.id}');this.textContent='✓';this.disabled=true;this.style.opacity='0.6';" style="background:var(--blue);color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:500;font-size:12px;">
+          📱 SMS
         </button>
       </div>
     `;
@@ -2581,10 +2601,15 @@ function updateWaPreview() {
   }
 }
 
-function saveLesson(withWa) {
+async function saveLesson(withWa) {
   const sid=document.getElementById('lessonStudent').value, d=document.getElementById('lessonDate').value, t=document.getElementById('lessonTime').value;
   const dur=document.getElementById('lessonDuration').value, addr=document.getElementById('lessonAddress').value.trim();
   if(!sid||!d||!t){ showToast('⚠️ נא למלא תלמיד, תאריך ושעה'); return; }
+
+  // Validate time format (HH:MM)
+  if(!/^\d{2}:\d{2}$/.test(t)) { showToast('⚠️ פורמט שעה לא תקין (HH:MM)'); return; }
+  const [thh, tmm] = t.split(':').map(Number);
+  if(thh > 23 || tmm > 59) { showToast('⚠️ שעה לא תקינה'); return; }
 
   // Validate not in the past (only for new lessons) - use real date, not working day
   const now = new Date();
@@ -2597,6 +2622,17 @@ function saveLesson(withWa) {
       const currentTime = now.getHours() * 60 + now.getMinutes();
       if(lessonTime < currentTime) { showToast('⚠️ לא ניתן לקבוע שיעור בשעה שעברה'); return; }
     }
+  }
+
+  // Holiday warning
+  const holiday = getHoliday(d);
+  if(holiday && !editingLessonId) {
+    const isMajor = isMajorHoliday(d);
+    const msg = isMajor
+      ? `⚠️ שים לב! התאריך ${formatDateHeb(d)} חל ב${holiday}.\n\nזהו חג מרכזי - האם בטוח שתרצה לקבוע שיעור?`
+      : `📅 שים לב: התאריך ${formatDateHeb(d)} חל ב${holiday}.\n\nלהמשיך?`;
+    const confirmed = await customConfirm(msg, holiday, isMajor ? '⚠️' : '📅');
+    if(!confirmed) return;
   }
 
   // Check for conflicting lessons (same time slot)
@@ -2672,10 +2708,77 @@ function saveLesson(withWa) {
     renderAll();
   }
 
-  if(withWa) {
+  if(withWa === true) {
     const msg = buildWaMsg(s.name,d,t,dur,addr);
     window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(msg)}`,'_blank');
+  } else if(withWa === 'sms') {
+    const msg = buildSmsMsg(s.name,d,t,dur,addr);
+    openSmsLink(s.phone, msg);
   }
+}
+
+// ---- SMS FUNCTIONS (for kosher phones) ----
+function buildSmsMsg(sName,date,time,dur,addr) {
+  let m = `שלום ${sName}, נקבע לך שיעור נהיגה:\n${formatDateHeb(date)}\nשעה: ${time}\n${dur} דקות\n`;
+  if(addr) m += `כתובת: ${addr}\n`;
+  m += `נתראה!`;
+  return m;
+}
+
+function buildReminderSms(sName, lessonDate, time, dur, addr) {
+  const realToday = getRealTodayStr();
+  const realTomorrow = getRealTomorrowStr();
+  let dayText;
+  if (lessonDate === realToday) dayText = 'היום';
+  else if (lessonDate === realTomorrow) dayText = 'מחר';
+  else dayText = formatDateHeb(lessonDate);
+
+  let m = `שלום ${sName}, תזכורת לשיעור נהיגה ${dayText}:\nשעה: ${time}\n${dur} דקות\n`;
+  if(addr) m += `כתובת: ${addr}\n`;
+  m += `מאשר/ת?`;
+  return m;
+}
+
+function formatPhoneSms(p) {
+  let c = p.replace(/[\s\-()+"]/g,'');
+  if(!c.startsWith('+') && !c.startsWith('972')) {
+    if(c.startsWith('0')) c = '+972' + c.slice(1);
+    else c = '+972' + c;
+  } else if(c.startsWith('972')) {
+    c = '+' + c;
+  }
+  return c;
+}
+
+function openSmsLink(phone, msg) {
+  const num = formatPhoneSms(phone);
+  // Cross-platform sms: URI
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const sep = isIOS ? '&' : '?';
+  window.open(`sms:${num}${sep}body=${encodeURIComponent(msg)}`, '_blank');
+}
+
+function sendLessonSms(lid) {
+  const l=lessons.find(x=>x.id===lid); if(!l)return;
+  const s=students.find(x=>x.id===l.studentId); if(!s)return;
+  const msg=buildSmsMsg(s.name,l.date,l.time,l.duration,l.address);
+  openSmsLink(s.phone, msg);
+}
+
+function sendReminderSms(lid) {
+  const l=lessons.find(x=>x.id===lid); if(!l)return;
+  if (l.status !== 'scheduled') { showToast('לא שולחים תזכורת לשיעור שבוטל/הסתיים'); return; }
+  const s=students.find(x=>x.id===l.studentId); if(!s)return;
+  const msg=buildReminderSms(s.name,l.date,l.time,l.duration,l.address);
+  openSmsLink(s.phone, msg);
+}
+
+function sendDebtSms(sid) {
+  const s=students.find(x=>x.id===sid); if(!s)return;
+  const bal = getStudentBalance(s);
+  const debt = Math.abs(bal);
+  const msg = `שלום ${s.name}, רציתי לעדכן שיש יתרת חוב פתוחה של ${fmtMoney(debt)} שקלים. אשמח לסגור כשנוח לך. תודה!`;
+  openSmsLink(s.phone, msg);
 }
 
 function sendLessonWa(lid) {
@@ -3018,10 +3121,11 @@ function openStudentDetail(sid) {
   if(s.wantsExtraLessons) h += `<div style="font-size:12px;color:var(--blue);margin-bottom:12px;">🔔 מחפש שעות נוספות</div>`;
 
   h += `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
-    <button class="btn btn-whatsapp btn-sm" style="flex:1;min-width:45%;" onclick="window.open('https://wa.me/${formatPhone(s.phone)}','_blank')">💬 וואטסאפ</button>
+    <button class="btn btn-whatsapp btn-sm" style="flex:1;min-width:30%;" onclick="window.open('https://wa.me/${formatPhone(s.phone)}','_blank')">💬 וואטסאפ</button>
+    <button class="btn btn-outline btn-sm" style="flex:1;min-width:30%;border-color:var(--blue);color:var(--blue);" onclick="openSmsLink('${escHtml(s.phone)}','')">📱 SMS</button>
     <button class="btn btn-primary btn-sm" style="flex:1;min-width:45%;" onclick="paymentFromDetail('${s.id}')">💳 תשלום</button>
     <button class="btn btn-outline btn-sm" style="flex:1;min-width:45%;" onclick="editStudentFromDetail('${s.id}')">✏️ עריכה</button>
-    ${bal<0?`<button class="btn btn-outline btn-sm" style="flex:1;min-width:45%;border-color:var(--warning);color:var(--warning);" onclick="sendDebtWa('${s.id}')">⚠️ תזכורת חוב</button>`:''}
+    ${bal<0?`<button class="btn btn-outline btn-sm" style="flex:1;min-width:30%;border-color:var(--warning);color:var(--warning);" onclick="sendDebtWa('${s.id}')">⚠️ חוב WA</button><button class="btn btn-outline btn-sm" style="flex:1;min-width:30%;border-color:var(--blue);color:var(--blue);" onclick="sendDebtSms('${s.id}')">📱 חוב SMS</button>`:''}
   </div>`;
 
   if(sPayments.length>0) {
@@ -3067,6 +3171,101 @@ function openStudentDetail(sid) {
 }
 
 // ============================================================
+// HEBREW HOLIDAYS
+// ============================================================
+const HEBREW_HOLIDAYS = {
+  // 2025
+  '2025-03-14': 'פורים',
+  '2025-04-13': 'פסח (ערב חג)',
+  '2025-04-14': 'פסח',
+  '2025-04-15': 'חול המועד פסח',
+  '2025-04-16': 'חול המועד פסח',
+  '2025-04-17': 'חול המועד פסח',
+  '2025-04-18': 'חול המועד פסח',
+  '2025-04-19': 'שביעי של פסח',
+  '2025-04-20': 'איסרו חג',
+  '2025-04-30': 'יום הזיכרון',
+  '2025-05-01': 'יום העצמאות',
+  '2025-05-16': 'ל"ג בעומר',
+  '2025-06-02': 'שבועות',
+  '2025-09-23': 'ראש השנה',
+  '2025-09-24': 'ראש השנה ב׳',
+  '2025-10-02': 'יום כיפור',
+  '2025-10-07': 'סוכות',
+  '2025-10-08': 'חול המועד סוכות',
+  '2025-10-09': 'חול המועד סוכות',
+  '2025-10-10': 'חול המועד סוכות',
+  '2025-10-11': 'חול המועד סוכות',
+  '2025-10-12': 'הושענא רבה',
+  '2025-10-13': 'שמיני עצרת',
+  '2025-10-14': 'שמחת תורה',
+  // 2026
+  '2026-03-03': 'פורים',
+  '2026-04-02': 'פסח (ערב חג)',
+  '2026-04-03': 'פסח',
+  '2026-04-04': 'חול המועד פסח',
+  '2026-04-05': 'חול המועד פסח',
+  '2026-04-06': 'חול המועד פסח',
+  '2026-04-07': 'חול המועד פסח',
+  '2026-04-08': 'שביעי של פסח',
+  '2026-04-09': 'איסרו חג',
+  '2026-04-22': 'יום הזיכרון',
+  '2026-04-23': 'יום העצמאות',
+  '2026-05-05': 'ל"ג בעומר',
+  '2026-05-22': 'שבועות',
+  '2026-09-12': 'ראש השנה',
+  '2026-09-13': 'ראש השנה ב׳',
+  '2026-09-21': 'יום כיפור',
+  '2026-09-26': 'סוכות',
+  '2026-09-27': 'חול המועד סוכות',
+  '2026-09-28': 'חול המועד סוכות',
+  '2026-09-29': 'חול המועד סוכות',
+  '2026-09-30': 'חול המועד סוכות',
+  '2026-10-01': 'הושענא רבה',
+  '2026-10-02': 'שמיני עצרת',
+  '2026-10-03': 'שמחת תורה',
+  // 2027
+  '2027-03-23': 'פורים',
+  '2027-04-22': 'פסח (ערב חג)',
+  '2027-04-23': 'פסח',
+  '2027-04-24': 'חול המועד פסח',
+  '2027-04-25': 'חול המועד פסח',
+  '2027-04-26': 'חול המועד פסח',
+  '2027-04-27': 'חול המועד פסח',
+  '2027-04-28': 'שביעי של פסח',
+  '2027-04-29': 'איסרו חג',
+  '2027-05-11': 'יום הזיכרון',
+  '2027-05-12': 'יום העצמאות',
+  '2027-05-25': 'ל"ג בעומר',
+  '2027-06-11': 'שבועות',
+  '2027-10-02': 'ראש השנה',
+  '2027-10-03': 'ראש השנה ב׳',
+  '2027-10-11': 'יום כיפור',
+  '2027-10-16': 'סוכות',
+  '2027-10-17': 'חול המועד סוכות',
+  '2027-10-18': 'חול המועד סוכות',
+  '2027-10-19': 'חול המועד סוכות',
+  '2027-10-20': 'חול המועד סוכות',
+  '2027-10-21': 'הושענא רבה',
+  '2027-10-22': 'שמיני עצרת',
+  '2027-10-23': 'שמחת תורה',
+};
+
+// Major holidays where no lessons should be scheduled (exact match only)
+const MAJOR_HOLIDAYS = ['פסח','ראש השנה','ראש השנה ב׳','יום כיפור','סוכות','שביעי של פסח','שמיני עצרת','שמחת תורה','שבועות','יום הזיכרון'];
+
+function getHoliday(dateStr) {
+  return HEBREW_HOLIDAYS[dateStr] || null;
+}
+
+function isMajorHoliday(dateStr) {
+  const h = getHoliday(dateStr);
+  if (!h) return false;
+  // Exact match - so "חול המועד פסח" won't match "פסח"
+  return MAJOR_HOLIDAYS.includes(h);
+}
+
+// ============================================================
 // CALENDAR
 // ============================================================
 let calWeekStart = getWeekStart(new Date());
@@ -3082,7 +3281,7 @@ function calNext() { calWeekStart = new Date(calWeekStart); calWeekStart.setDate
 function calToday() { calWeekStart = getWeekStart(new Date()); renderCalendar(); }
 
 function renderCalendar() {
-  const DEFAULT_START = 7, DEFAULT_END = 21;
+  const DEFAULT_START = 7, DEFAULT_END = 24;
   const days = [];
   for(let i=0;i<7;i++) {
     const d = new Date(calWeekStart);
@@ -3115,7 +3314,9 @@ function renderCalendar() {
   days.forEach(d => {
     const ds = dateStr(d);
     const isTd = ds===todayD;
-    hdr += `<div class="cal-day-label ${isTd?'today':''}"><span class="cal-day-num">${d.getDate()}</span>${DAYS_SHORT[d.getDay()]}</div>`;
+    const holiday = getHoliday(ds);
+    const holidayLabel = holiday ? `<span style="font-size:8px;color:var(--danger);display:block;line-height:1;">${escHtml(holiday)}</span>` : '';
+    hdr += `<div class="cal-day-label ${isTd?'today':''}" ${holiday?'style="background:var(--danger-dim);border-radius:6px;"':''}><span class="cal-day-num">${d.getDate()}</span>${DAYS_SHORT[d.getDay()]}${holidayLabel}</div>`;
   });
   document.getElementById('calWeekHeader').innerHTML = hdr;
 
@@ -3126,7 +3327,8 @@ function renderCalendar() {
     days.forEach(d => {
       const ds = dateStr(d);
       const isTd = ds===todayD;
-      body += `<div class="cal-cell ${isTd?'today-col':''}" data-date="${ds}" data-hour="${h}" onclick="onCalCellClick('${ds}','${String(h).padStart(2,'0')}:00')"></div>`;
+      const isHolidayCol = getHoliday(ds) ? 'background:var(--danger-dim);' : '';
+      body += `<div class="cal-cell ${isTd?'today-col':''}" style="${isHolidayCol}" data-date="${ds}" data-hour="${h}" onclick="onCalCellClick('${ds}','${String(h).padStart(2,'0')}:00')"></div>`;
     });
   }
   document.getElementById('calBody').innerHTML = body;
@@ -3291,7 +3493,8 @@ function renderFinance() {
         <div class="student-avatar" style="width:36px;height:36px;font-size:13px;">${escHtml(getInitials(s.name))}</div>
         <div class="debt-info"><div class="debt-name">${escHtml(s.name)}</div><div class="debt-detail">${completedCount} שיעורים</div></div>
         <div class="debt-amount">${fmtMoney(debt)} ₪</div>
-        <button class="icon-btn wa" onclick="event.stopPropagation();sendDebtWa('${s.id}')" title="תזכורת חוב">💬</button>
+        <button class="icon-btn wa" onclick="event.stopPropagation();sendDebtWa('${s.id}')" title="תזכורת חוב WA">💬</button>
+        <button class="icon-btn" onclick="event.stopPropagation();sendDebtSms('${s.id}')" title="תזכורת חוב SMS" style="color:var(--blue);">📱</button>
       </div>`;
     });
     debtC.innerHTML = dh;
@@ -3377,7 +3580,7 @@ function renderDashboard() {
       const lessonEndMin = lhh * 60 + lmm + (l.duration || 40);
       const canComplete = (l.date < realToday) || (l.date === realToday && lessonEndMin <= nowMin);
       const completeBtn = canComplete ? `<button class="icon-btn" onclick="event.stopPropagation();markLessonCompleted('${l.id}')" title="סמן כבוצע" style="color:var(--accent);">✓</button>` : '';
-      h += `<div class="lesson-item"><div class="lesson-time"><div class="lesson-hour">${l.time}</div><div class="lesson-date-small">${l.date.slice(5).replace('-','/')}</div></div><div class="lesson-details"><div class="lesson-student-name">${escHtml(l.studentName)} ${tBadge}</div><div class="lesson-info">${l.duration} דק׳${l.address?' · 📍 '+escHtml(l.address):''}</div></div><div class="lesson-actions">${completeBtn}<button class="icon-btn" onclick="openEditLessonModal('${l.id}')" title="עריכה">✏️</button><button class="icon-btn wa" onclick="sendLessonWa('${l.id}')" title="וואטסאפ">💬</button><button class="icon-btn" onclick="deleteLesson('${l.id}')" title="מחיקה" style="color:var(--danger);">✕</button></div></div>`;
+      h += `<div class="lesson-item"><div class="lesson-time"><div class="lesson-hour">${l.time}</div><div class="lesson-date-small">${l.date.slice(5).replace('-','/')}</div></div><div class="lesson-details"><div class="lesson-student-name">${escHtml(l.studentName)} ${tBadge}</div><div class="lesson-info">${l.duration} דק׳${l.address?' · 📍 '+escHtml(l.address):''}</div></div><div class="lesson-actions">${completeBtn}<button class="icon-btn" onclick="openEditLessonModal('${l.id}')" title="עריכה">✏️</button><button class="icon-btn wa" onclick="sendLessonWa('${l.id}')" title="וואטסאפ">💬</button><button class="icon-btn" onclick="sendLessonSms('${l.id}')" title="SMS" style="color:var(--blue);">📱</button><button class="icon-btn" onclick="deleteLesson('${l.id}')" title="מחיקה" style="color:var(--danger);">✕</button></div></div>`;
     });
     uc.innerHTML = h;
   }
@@ -3397,7 +3600,8 @@ function renderDashboard() {
         </div>
         <div class="lesson-actions">
           <button class="icon-btn" onclick="openEditLessonModal('${l.id}')" title="עריכה">✏️</button>
-          <button class="icon-btn wa" onclick="sendTomorrowReminder('${l.id}')" title="שליחת תזכורת">💬</button>
+          <button class="icon-btn wa" onclick="sendTomorrowReminder('${l.id}')" title="תזכורת וואטסאפ">💬</button>
+          <button class="icon-btn" onclick="sendReminderSms('${l.id}')" title="תזכורת SMS" style="color:var(--blue);">📱</button>
         </div>
       </div>`;
     });
@@ -3408,6 +3612,51 @@ function renderDashboard() {
     tlc.innerHTML = tlh;
   } else {
     tlc.innerHTML = '';
+  }
+
+  // Weekly profit forecast
+  const wfEl = document.getElementById('weeklyForecast');
+  const weekStart = getWeekStart(new Date());
+  const weekDates = [];
+  for(let i=0;i<7;i++) {
+    const wd = new Date(weekStart);
+    wd.setDate(wd.getDate()+i);
+    weekDates.push(dateStr(wd));
+  }
+  const weekLessons = lessons.filter(l =>
+    weekDates.includes(l.date) && l.status !== 'cancelled' && l.status !== 'no-show'
+  );
+  const weekLessonCount = weekLessons.length;
+  const weekExpected = weekLessons.reduce((sum, l) => {
+    if (l.priceAtTime !== undefined && l.priceAtTime !== null) return sum + l.priceAtTime;
+    const st = students.find(x => x.id === l.studentId);
+    return sum + (st?.price || 0);
+  }, 0);
+  const weekCompleted = weekLessons.filter(l => l.status === 'completed').length;
+
+  if(weekLessonCount > 0) {
+    wfEl.innerHTML = `
+      <div class="section-title">📈 צפי שבועי</div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span style="font-size:13px;color:var(--text-dim);">שיעורים השבוע</span>
+          <span style="font-family:'Rubik',sans-serif;font-size:20px;font-weight:700;color:var(--blue);">${weekLessonCount}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span style="font-size:13px;color:var(--text-dim);">בוצעו</span>
+          <span style="font-family:'Rubik',sans-serif;font-size:16px;font-weight:600;color:var(--accent);">${weekCompleted}/${weekLessonCount}</span>
+        </div>
+        <div style="background:var(--surface);border-radius:8px;height:6px;overflow:hidden;margin-bottom:12px;">
+          <div style="background:var(--accent);height:100%;width:${weekLessonCount>0?Math.round(weekCompleted/weekLessonCount*100):0}%;border-radius:8px;transition:width 0.3s;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:14px;font-weight:600;">צפי רווח שבועי</span>
+          <span style="font-family:'Rubik',sans-serif;font-size:24px;font-weight:700;color:var(--accent);">${fmtMoney(weekExpected)} ₪</span>
+        </div>
+      </div>
+    `;
+  } else {
+    wfEl.innerHTML = '';
   }
 
   // Debt alerts on dashboard
