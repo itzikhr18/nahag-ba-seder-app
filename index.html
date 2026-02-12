@@ -3251,8 +3251,8 @@ const HEBREW_HOLIDAYS = {
   '2027-10-23': 'שמחת תורה',
 };
 
-// Major holidays where no lessons should be scheduled
-const MAJOR_HOLIDAYS = ['פסח','ראש השנה','ראש השנה ב׳','יום כיפור','סוכות','שביעי של פסח','שמיני עצרת','שמחת תורה','שבועות'];
+// Major holidays where no lessons should be scheduled (exact match only)
+const MAJOR_HOLIDAYS = ['פסח','ראש השנה','ראש השנה ב׳','יום כיפור','סוכות','שביעי של פסח','שמיני עצרת','שמחת תורה','שבועות','יום הזיכרון'];
 
 function getHoliday(dateStr) {
   return HEBREW_HOLIDAYS[dateStr] || null;
@@ -3261,7 +3261,8 @@ function getHoliday(dateStr) {
 function isMajorHoliday(dateStr) {
   const h = getHoliday(dateStr);
   if (!h) return false;
-  return MAJOR_HOLIDAYS.some(mh => h.includes(mh));
+  // Exact match - so "חול המועד פסח" won't match "פסח"
+  return MAJOR_HOLIDAYS.includes(h);
 }
 
 // ============================================================
