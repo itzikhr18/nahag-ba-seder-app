@@ -1925,18 +1925,27 @@ function resetLoginToPhone() {
   if (otpTimerInterval) clearInterval(otpTimerInterval);
 }
 
-function setupRecaptcha() {
-  if (phoneRecaptchaVerifier) return;
-  try {
-    phoneRecaptchaVerifier = new window.firebaseRecaptchaVerifier(window.firebaseAuth, 'recaptcha-container', {
-      size: 'invisible',
-      callback: () => {
-        // reCAPTCHA solved
-      }
-    });
-  } catch (err) {
-    console.error('reCAPTCHA setup error:', err);
+async function setupRecaptcha() {
+  // Clear any existing verifier
+  if (phoneRecaptchaVerifier) {
+    try { phoneRecaptchaVerifier.clear(); } catch (e) { /* ignore */ }
+    phoneRecaptchaVerifier = null;
   }
+  // Clear container to remove stale reCAPTCHA widgets
+  const container = document.getElementById('recaptcha-container');
+  if (container) container.innerHTML = '';
+
+  phoneRecaptchaVerifier = new window.firebaseRecaptchaVerifier(
+    window.firebaseAuth,
+    'recaptcha-container',
+    {
+      size: 'invisible',
+      callback: () => { /* reCAPTCHA solved */ },
+      'expired-callback': () => { phoneRecaptchaVerifier = null; }
+    }
+  );
+  // Explicitly render and wait for reCAPTCHA to be ready
+  await phoneRecaptchaVerifier.render();
 }
 
 async function sendOtpCode() {
@@ -1962,12 +1971,19 @@ async function sendOtpCode() {
     fullNumber = '+972' + digits;
   }
 
+  // Check Firebase is ready
+  if (!window.firebaseReady || !window.firebaseAuth) {
+    errorEl.textContent = '❌ המערכת טוענת, אנא המתן ורענן את הדף';
+    errorEl.classList.add('show');
+    return;
+  }
+
   errorEl.classList.remove('show');
   sendBtn.disabled = true;
   sendBtn.textContent = '⏳ שולח...';
 
   try {
-    setupRecaptcha();
+    await setupRecaptcha();
     phoneConfirmationResult = await window.firebaseSignInWithPhoneNumber(
       window.firebaseAuth,
       fullNumber,
@@ -1998,7 +2014,13 @@ async function sendOtpCode() {
     sendBtn.disabled = false;
     sendBtn.textContent = '📱 שלח קוד אימות';
     // Reset reCAPTCHA for retry
+    if (phoneRecaptchaVerifier) {
+      try { phoneRecaptchaVerifier.clear(); } catch(e) { /* ignore */ }
+    }
     phoneRecaptchaVerifier = null;
+    // Clear container for clean retry
+    const rc = document.getElementById('recaptcha-container');
+    if (rc) rc.innerHTML = '';
   }
 }
 

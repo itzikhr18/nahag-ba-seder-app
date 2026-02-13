@@ -1,7 +1,7 @@
 // נהג בסדר - Service Worker
-// גרסה: 3.0.0 - Phone Auth, Firestore subcollections, Firestore as source of truth
+// גרסה: 4.0.0 - Fix reCAPTCHA Phone Auth
 
-const CACHE_NAME = 'nahag-baseder-v3';
+const CACHE_NAME = 'nahag-baseder-v4';
 
 // קבצים לשמירה במטמון
 const STATIC_ASSETS = [
