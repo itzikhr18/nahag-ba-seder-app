@@ -1,7 +1,7 @@
 // נהג בסדר - Service Worker
-// גרסה: 2.0.0 - תיקוני באגים קריטיים לסנכרון ענן, ולידציה ושמירת נתונים
+// גרסה: 3.0.0 - Phone Auth, Firestore subcollections, Firestore as source of truth
 
-const CACHE_NAME = 'nahag-baseder-v2';
+const CACHE_NAME = 'nahag-baseder-v3';
 
 // קבצים לשמירה במטמון
 const STATIC_ASSETS = [
