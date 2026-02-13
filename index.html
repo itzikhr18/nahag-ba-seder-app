@@ -1986,10 +1986,13 @@ async function sendOtpCode() {
     startOtpTimer(60);
   } catch (err) {
     console.error('Send OTP error:', err);
-    let errorMsg = '❌ שגיאה בשליחת קוד';
+    let errorMsg = '❌ שגיאה בשליחת קוד (' + (err.code || err.message || 'unknown') + ')';
     if (err.code === 'auth/invalid-phone-number') errorMsg = '❌ מספר טלפון לא תקין';
     else if (err.code === 'auth/too-many-requests') errorMsg = '❌ יותר מדי ניסיונות, נסה מאוחר יותר';
     else if (err.code === 'auth/quota-exceeded') errorMsg = '❌ חרגת ממכסת השליחות, נסה מאוחר יותר';
+    else if (err.code === 'auth/operation-not-allowed') errorMsg = '❌ Phone Auth לא מופעל - יש להפעיל ב-Firebase Console';
+    else if (err.code === 'auth/invalid-app-credential') errorMsg = '❌ בעיית reCAPTCHA - רענן את הדף ונסה שוב';
+    else if (err.code === 'auth/network-request-failed') errorMsg = '❌ בעיית רשת - בדוק חיבור לאינטרנט';
     errorEl.textContent = errorMsg;
     errorEl.classList.add('show');
     sendBtn.disabled = false;
