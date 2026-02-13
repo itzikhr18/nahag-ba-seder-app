@@ -36,8 +36,8 @@
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-  import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+  import { getFirestore, doc, setDoc, getDoc, getDocs, deleteDoc, collection, writeBatch, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { getAuth, signInAnonymously, onAuthStateChanged, signInWithPhoneNumber, RecaptchaVerifier, linkWithCredential, PhoneAuthProvider, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyC5TE_diBTNBYT2IMPJH0YsgD31spBqnE",
@@ -59,9 +59,18 @@
   window.firebaseDoc = doc;
   window.firebaseSetDoc = setDoc;
   window.firebaseGetDoc = getDoc;
+  window.firebaseGetDocs = getDocs;
+  window.firebaseDeleteDoc = deleteDoc;
+  window.firebaseCollection = collection;
+  window.firebaseWriteBatch = writeBatch;
   window.firebaseOnSnapshot = onSnapshot;
   window.firebaseSignInAnonymously = signInAnonymously;
   window.firebaseOnAuthStateChanged = onAuthStateChanged;
+  window.firebaseSignInWithPhoneNumber = signInWithPhoneNumber;
+  window.firebaseRecaptchaVerifier = RecaptchaVerifier;
+  window.firebaseLinkWithCredential = linkWithCredential;
+  window.firebasePhoneAuthProvider = PhoneAuthProvider;
+  window.firebaseSignOut = signOut;
   window.firebaseReady = true;
 
   // Dispatch event when Firebase is ready
@@ -335,6 +344,114 @@
   }
   .license-btn:hover { filter: brightness(1.1); }
   .license-footer { margin-top: 20px; font-size: 11px; color: var(--text-muted); }
+
+  /* ===== LOGIN SCREEN (Phone Auth) ===== */
+  .login-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .login-screen.hidden { display: none; }
+  .login-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 30px 24px;
+    max-width: 360px;
+    width: 100%;
+    text-align: center;
+  }
+  .login-logo { font-size: 48px; margin-bottom: 12px; }
+  .login-title { font-family: 'Rubik', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .login-title span { color: var(--accent); }
+  .login-subtitle { font-size: 13px; color: var(--text-dim); margin-bottom: 24px; }
+  .login-phone-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    direction: ltr;
+  }
+  .login-prefix {
+    width: 70px;
+    padding: 14px 8px;
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: 'Rubik', sans-serif;
+    font-size: 16px;
+    text-align: center;
+  }
+  .login-prefix:focus { outline: none; border-color: var(--accent); }
+  .login-phone-input {
+    flex: 1;
+    padding: 14px 16px;
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: 'Rubik', sans-serif;
+    font-size: 18px;
+    letter-spacing: 1px;
+  }
+  .login-phone-input:focus { outline: none; border-color: var(--accent); }
+  .login-phone-input::placeholder { letter-spacing: 0; font-size: 14px; }
+  .login-otp-input {
+    width: 100%;
+    padding: 14px 16px;
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: 'Rubik', sans-serif;
+    font-size: 24px;
+    text-align: center;
+    letter-spacing: 8px;
+    margin-bottom: 12px;
+    direction: ltr;
+  }
+  .login-otp-input:focus { outline: none; border-color: var(--accent); }
+  .login-otp-input::placeholder { letter-spacing: 0; font-size: 14px; }
+  .login-error { color: var(--danger); font-size: 13px; margin-bottom: 12px; display: none; }
+  .login-error.show { display: block; }
+  .login-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    border: none;
+    border-radius: var(--radius-sm);
+    color: #000;
+    font-family: 'Heebo', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
+  .login-btn:hover { filter: brightness(1.1); }
+  .login-btn:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
+  .login-btn-outline {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    font-family: 'Heebo', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
+  .login-btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .login-step { display: none; }
+  .login-step.active { display: block; }
+  .login-footer { margin-top: 16px; font-size: 11px; color: var(--text-muted); }
+  .login-timer { font-size: 12px; color: var(--text-dim); margin-bottom: 12px; }
 
   /* ===== LICENSED USER BADGE ===== */
   .licensed-badge {
@@ -684,6 +801,38 @@
 </head>
 <body>
 
+<!-- ===== LOGIN SCREEN (Phone Auth) ===== -->
+<div class="login-screen hidden" id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">🚗</div>
+    <div class="login-title">נהג<span>בסדר</span></div>
+    <div class="login-subtitle">התחבר עם מספר הטלפון שלך</div>
+
+    <!-- Step 1: Phone Number -->
+    <div class="login-step active" id="loginStepPhone">
+      <div class="login-phone-row">
+        <input type="text" class="login-prefix" id="loginPrefix" value="+972" readonly>
+        <input type="tel" class="login-phone-input" id="loginPhone" placeholder="50-1234567" maxlength="11" inputmode="tel">
+      </div>
+      <div class="login-error" id="loginPhoneError"></div>
+      <button class="login-btn" id="loginSendCodeBtn" onclick="sendOtpCode()">📱 שלח קוד אימות</button>
+    </div>
+
+    <!-- Step 2: OTP Code -->
+    <div class="login-step" id="loginStepOtp">
+      <div style="font-size:13px;color:var(--text-dim);margin-bottom:12px;" id="loginOtpInfo">קוד אימות נשלח ל...</div>
+      <input type="text" class="login-otp-input" id="loginOtpCode" placeholder="000000" maxlength="6" inputmode="numeric">
+      <div class="login-error" id="loginOtpError"></div>
+      <div class="login-timer" id="loginTimer"></div>
+      <button class="login-btn" id="loginVerifyBtn" onclick="verifyOtpCode()">🔓 כניסה</button>
+      <button class="login-btn-outline" onclick="resetLoginToPhone()">← שינוי מספר</button>
+    </div>
+
+    <div class="login-footer">הכניסה מאובטחת באמצעות Firebase Authentication</div>
+    <div id="recaptcha-container"></div>
+  </div>
+</div>
+
 <!-- ===== LICENSE ACTIVATION SCREEN ===== -->
 <div class="license-screen" id="licenseScreen">
   <div class="license-box">
@@ -745,6 +894,10 @@
     <div style="margin-top:24px;display:flex;gap:8px;">
       <button class="btn btn-outline btn-sm" style="flex:1;" onclick="exportData()">📥 ייצוא גיבוי</button>
       <button class="btn btn-outline btn-sm" style="flex:1;" onclick="importData()">📤 ייבוא גיבוי</button>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+      <span style="font-size:12px;color:var(--text-muted);flex:1;" id="loggedInPhone"></span>
+      <button class="btn btn-outline btn-sm" style="flex:0 0 auto;border-color:var(--danger);color:var(--danger);" onclick="logoutUser()">🚪 התנתק</button>
     </div>
   </div>
 
@@ -1257,13 +1410,14 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ============================================================
-// FIREBASE SYNC & CLOUD BACKUP
+// FIREBASE SYNC & CLOUD BACKUP (Subcollections + Firestore as source of truth)
 // ============================================================
 let firebaseUserId = null;
 let isOnline = navigator.onLine;
 let syncInProgress = false;
 let pendingSync = false;
 let lastSyncTime = null;
+let hasPendingLocalChanges = false;
 
 // Offline detection
 window.addEventListener('online', () => {
@@ -1271,8 +1425,8 @@ window.addEventListener('online', () => {
   document.getElementById('offlineBanner').classList.remove('show');
   document.body.classList.remove('is-offline');
   showToast('✅ חיבור לאינטרנט חזר');
-  // Sync pending changes
-  if (firebaseUserId) syncToCloud();
+  // Sync pending local changes to Firestore
+  if (firebaseUserId && hasPendingLocalChanges) syncToCloud();
 });
 
 window.addEventListener('offline', () => {
@@ -1343,15 +1497,29 @@ function showSyncIndicator(status, text) {
   }
 }
 
-// Sync data to Firebase
+// Save to localStorage as cache
+function saveToLocalCache() {
+  try {
+    localStorage.setItem('drv_students', JSON.stringify(students));
+    localStorage.setItem('drv_lessons', JSON.stringify(lessons));
+    localStorage.setItem('drv_payments', JSON.stringify(payments));
+    localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
+    localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
+    localStorage.setItem('drv_last_save', new Date().toISOString());
+  } catch(e) {
+    console.error('localStorage save error:', e);
+  }
+}
+
+// ---- SUBCOLLECTION SYNC: Write all data to Firestore subcollections ----
 async function syncToCloud() {
-  // CRITICAL: Never sync corrupted data to cloud
   if (dataCorrupted) {
     console.warn('syncToCloud blocked: data is corrupted');
     return;
   }
   if (!window.firebaseReady || !firebaseUserId || !isOnline) {
     pendingSync = true;
+    hasPendingLocalChanges = true;
     return;
   }
   if (syncInProgress) {
@@ -1363,39 +1531,312 @@ async function syncToCloud() {
   showSyncIndicator('syncing', 'מסנכרן...');
 
   try {
-    const userDoc = window.firebaseDoc(window.firebaseDB, 'users', firebaseUserId);
-    await window.firebaseSetDoc(userDoc, {
-      students: students,
-      lessons: lessons,
-      payments: payments,
-      vehicleData: vehicleData || null,
-      kmHistory: kmHistory || [],
+    const db = window.firebaseDB;
+    const uid = firebaseUserId;
+
+    // Update user profile doc
+    const userDocRef = window.firebaseDoc(db, 'users', uid);
+    await window.firebaseSetDoc(userDocRef, {
+      phone: localStorage.getItem('drv_user_phone') || '',
       lastUpdated: new Date().toISOString(),
-      appVersion: '2.0'
-    });
+      appVersion: '3.0',
+      dataFormat: 'subcollections'
+    }, { merge: true });
+
+    // Batch write students
+    await syncSubcollection(db, uid, 'students', students, 'id');
+    // Batch write lessons
+    await syncSubcollection(db, uid, 'lessons', lessons, 'id');
+    // Batch write payments
+    await syncSubcollection(db, uid, 'payments', payments, 'id');
+
+    // Vehicle data (single doc)
+    const vehicleDocRef = window.firebaseDoc(db, 'users', uid, 'vehicle', 'data');
+    if (vehicleData) {
+      await window.firebaseSetDoc(vehicleDocRef, {
+        ...vehicleData,
+        kmHistory: kmHistory || [],
+        lastUpdated: new Date().toISOString()
+      });
+    } else {
+      // Write empty vehicle doc so we know the format
+      await window.firebaseSetDoc(vehicleDocRef, {
+        kmHistory: kmHistory || [],
+        lastUpdated: new Date().toISOString()
+      });
+    }
 
     lastSyncTime = new Date();
+    hasPendingLocalChanges = false;
     showSyncIndicator('synced', '✓ מסונכרן');
     localStorage.setItem('drv_last_cloud_sync', lastSyncTime.toISOString());
   } catch (err) {
     console.error('Sync error:', err);
     showSyncIndicator('error', '⚠️ שגיאת סנכרון');
     pendingSync = true;
+    hasPendingLocalChanges = true;
   } finally {
     syncInProgress = false;
     if (pendingSync) {
       pendingSync = false;
-      setTimeout(syncToCloud, 1000);
+      setTimeout(syncToCloud, 2000);
     }
   }
 }
 
-// Validate cloud data before loading (uses existing validation functions)
+// Sync a subcollection: delete removed docs, set current docs using batch writes
+async function syncSubcollection(db, uid, collName, items, idField) {
+  const collRef = window.firebaseCollection(db, 'users', uid, collName);
+
+  // Get existing docs in the subcollection
+  const existingSnap = await window.firebaseGetDocs(collRef);
+  const existingIds = new Set();
+  existingSnap.forEach(doc => existingIds.add(doc.id));
+
+  const currentIds = new Set(items.map(item => item[idField]));
+
+  // Process in batches of 500 (Firestore limit)
+  const BATCH_SIZE = 450;
+  let batch = window.firebaseWriteBatch(db);
+  let opCount = 0;
+
+  // Delete removed items
+  for (const existId of existingIds) {
+    if (!currentIds.has(existId)) {
+      const docRef = window.firebaseDoc(db, 'users', uid, collName, existId);
+      batch.delete(docRef);
+      opCount++;
+      if (opCount >= BATCH_SIZE) {
+        await batch.commit();
+        batch = window.firebaseWriteBatch(db);
+        opCount = 0;
+      }
+    }
+  }
+
+  // Set/update current items
+  for (const item of items) {
+    const docRef = window.firebaseDoc(db, 'users', uid, collName, item[idField]);
+    batch.set(docRef, item);
+    opCount++;
+    if (opCount >= BATCH_SIZE) {
+      await batch.commit();
+      batch = window.firebaseWriteBatch(db);
+      opCount = 0;
+    }
+  }
+
+  if (opCount > 0) {
+    await batch.commit();
+  }
+}
+
+// ---- SUBCOLLECTION LOAD: Read all data from Firestore subcollections ----
+async function loadFromCloud(forceLoad = false) {
+  if (!window.firebaseReady || !firebaseUserId) return false;
+
+  try {
+    const db = window.firebaseDB;
+    const uid = firebaseUserId;
+
+    // Check user doc first
+    const userDocRef = window.firebaseDoc(db, 'users', uid);
+    const userDocSnap = await window.firebaseGetDoc(userDocRef);
+
+    if (!userDocSnap.exists()) return false;
+
+    const userData = userDocSnap.data();
+
+    // Check if data is in old format (single-doc blob) and needs migration
+    if (userData.students && Array.isArray(userData.students)) {
+      console.log('Old format detected - migrating to subcollections...');
+      await migrateOldFormatToSubcollections(db, uid, userData);
+      // After migration, continue loading from subcollections
+    }
+
+    // Check timestamps
+    const cloudTime = new Date(userData.lastUpdated || 0);
+    const localTime = new Date(localStorage.getItem('drv_last_save') || 0);
+
+    if (!forceLoad && cloudTime <= localTime && !hasPendingLocalChanges) {
+      return false; // Local is newer or same
+    }
+
+    // Load from subcollections
+    const [studentsSnap, lessonsSnap, paymentsSnap, vehicleSnap] = await Promise.all([
+      window.firebaseGetDocs(window.firebaseCollection(db, 'users', uid, 'students')),
+      window.firebaseGetDocs(window.firebaseCollection(db, 'users', uid, 'lessons')),
+      window.firebaseGetDocs(window.firebaseCollection(db, 'users', uid, 'payments')),
+      window.firebaseGetDoc(window.firebaseDoc(db, 'users', uid, 'vehicle', 'data'))
+    ]);
+
+    // Build arrays from subcollection docs
+    const cloudStudents = [];
+    const validStudentIds = new Set();
+    studentsSnap.forEach(doc => {
+      const validated = validateStudent(doc.data());
+      if (validated) {
+        cloudStudents.push(validated);
+        validStudentIds.add(validated.id);
+      }
+    });
+
+    const cloudLessons = [];
+    lessonsSnap.forEach(doc => {
+      const validated = validateLesson(doc.data(), validStudentIds);
+      if (validated) cloudLessons.push(validated);
+    });
+
+    const cloudPayments = [];
+    paymentsSnap.forEach(doc => {
+      const validated = validatePayment(doc.data(), validStudentIds);
+      if (validated) cloudPayments.push(validated);
+    });
+
+    let cloudVehicle = null;
+    let cloudKmHistory = [];
+    if (vehicleSnap.exists()) {
+      const vData = vehicleSnap.data();
+      cloudVehicle = validateVehicleData(vData);
+      cloudKmHistory = validateKmHistory(vData.kmHistory);
+    }
+
+    // If we have pending local changes and cloud data, do last-write-wins merge
+    if (hasPendingLocalChanges && !forceLoad) {
+      // Merge: take items with latest timestamps
+      students = mergeByTimestamp(students, cloudStudents);
+      lessons = mergeByTimestamp(lessons, cloudLessons);
+      payments = mergeByTimestamp(payments, cloudPayments);
+    } else {
+      // Direct load from cloud
+      if (cloudStudents.length > 0 || cloudLessons.length > 0 || cloudPayments.length > 0 || forceLoad) {
+        students = cloudStudents;
+        lessons = cloudLessons;
+        payments = cloudPayments;
+      }
+    }
+
+    if (cloudVehicle !== undefined) vehicleData = cloudVehicle;
+    kmHistory = cloudKmHistory;
+
+    // Update localStorage cache
+    saveToLocalCache();
+
+    // Clear corrupted state if cloud load succeeded
+    if (dataCorrupted) {
+      dataCorrupted = false;
+      const banner = document.getElementById('corruptedBanner');
+      if (banner) {
+        banner.remove();
+        document.body.style.paddingTop = '';
+      }
+    }
+
+    invalidateBalanceCache();
+    hasPendingLocalChanges = false;
+    return true;
+  } catch (err) {
+    console.error('Load from cloud error:', err);
+    return false;
+  }
+}
+
+// Last-write-wins merge for offline conflict resolution
+function mergeByTimestamp(localItems, cloudItems) {
+  const merged = new Map();
+
+  // Add cloud items first
+  for (const item of cloudItems) {
+    merged.set(item.id, item);
+  }
+
+  // Override with local items that are newer (by createdAt or just override)
+  for (const item of localItems) {
+    const existing = merged.get(item.id);
+    if (!existing) {
+      merged.set(item.id, item); // New local item not in cloud
+    } else {
+      // Compare timestamps - local wins if newer
+      const localTime = new Date(item.createdAt || 0).getTime();
+      const cloudTime = new Date(existing.createdAt || 0).getTime();
+      if (localTime >= cloudTime) {
+        merged.set(item.id, item);
+      }
+    }
+  }
+
+  return Array.from(merged.values());
+}
+
+// Migrate old single-document format to subcollections
+async function migrateOldFormatToSubcollections(db, uid, oldData) {
+  try {
+    showSyncIndicator('syncing', 'מעביר נתונים...');
+
+    const validStudentIds = new Set();
+    const migratedStudents = [];
+    if (Array.isArray(oldData.students)) {
+      for (const s of oldData.students) {
+        const validated = validateStudent(s);
+        if (validated) {
+          migratedStudents.push(validated);
+          validStudentIds.add(validated.id);
+        }
+      }
+    }
+
+    const migratedLessons = [];
+    if (Array.isArray(oldData.lessons)) {
+      for (const l of oldData.lessons) {
+        const validated = validateLesson(l, validStudentIds);
+        if (validated) migratedLessons.push(validated);
+      }
+    }
+
+    const migratedPayments = [];
+    if (Array.isArray(oldData.payments)) {
+      for (const p of oldData.payments) {
+        const validated = validatePayment(p, validStudentIds);
+        if (validated) migratedPayments.push(validated);
+      }
+    }
+
+    // Write to subcollections
+    await syncSubcollection(db, uid, 'students', migratedStudents, 'id');
+    await syncSubcollection(db, uid, 'lessons', migratedLessons, 'id');
+    await syncSubcollection(db, uid, 'payments', migratedPayments, 'id');
+
+    // Vehicle data
+    const vehicleDocRef = window.firebaseDoc(db, 'users', uid, 'vehicle', 'data');
+    const vData = oldData.vehicleData ? validateVehicleData(oldData.vehicleData) : null;
+    const kHistory = validateKmHistory(oldData.kmHistory);
+    await window.firebaseSetDoc(vehicleDocRef, {
+      ...(vData || {}),
+      kmHistory: kHistory,
+      lastUpdated: new Date().toISOString()
+    });
+
+    // Update user doc to mark migration complete and remove old blob data
+    const userDocRef = window.firebaseDoc(db, 'users', uid);
+    await window.firebaseSetDoc(userDocRef, {
+      lastUpdated: new Date().toISOString(),
+      appVersion: '3.0',
+      dataFormat: 'subcollections',
+      migratedAt: new Date().toISOString()
+    });
+
+    console.log('Migration to subcollections complete');
+    showSyncIndicator('synced', '✓ מיגרציה הושלמה');
+  } catch (err) {
+    console.error('Migration error:', err);
+    showSyncIndicator('error', '⚠️ שגיאת מיגרציה');
+  }
+}
+
+// Validate cloud data (for old-format compatibility)
 function validateCloudData(data) {
   const validatedStudents = [];
   const validStudentIds = new Set();
-
-  // Validate students first
   if (Array.isArray(data.students)) {
     for (const s of data.students) {
       const validated = validateStudent(s);
@@ -1405,8 +1846,6 @@ function validateCloudData(data) {
       }
     }
   }
-
-  // Validate lessons (must reference valid students)
   const validatedLessons = [];
   if (Array.isArray(data.lessons)) {
     for (const l of data.lessons) {
@@ -1414,8 +1853,6 @@ function validateCloudData(data) {
       if (validated) validatedLessons.push(validated);
     }
   }
-
-  // Validate payments (must reference valid students)
   const validatedPayments = [];
   if (Array.isArray(data.payments)) {
     for (const p of data.payments) {
@@ -1423,13 +1860,8 @@ function validateCloudData(data) {
       if (validated) validatedPayments.push(validated);
     }
   }
-
-  // Validate vehicle data
   const validatedVehicle = data.vehicleData !== undefined ? validateVehicleData(data.vehicleData) : undefined;
-
-  // Validate km history
   const validatedKmHistory = validateKmHistory(data.kmHistory);
-
   return {
     students: validatedStudents,
     lessons: validatedLessons,
@@ -1439,65 +1871,7 @@ function validateCloudData(data) {
   };
 }
 
-// Load data from Firebase
-async function loadFromCloud(forceLoad = false) {
-  if (!window.firebaseReady || !firebaseUserId) return false;
-
-  try {
-    const userDoc = window.firebaseDoc(window.firebaseDB, 'users', firebaseUserId);
-    const docSnap = await window.firebaseGetDoc(userDoc);
-
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      // Check if cloud data is newer than local (or forceLoad for recovery)
-      const cloudTime = new Date(data.lastUpdated || 0);
-      const localTime = new Date(localStorage.getItem('drv_last_save') || 0);
-
-      if (forceLoad || cloudTime > localTime) {
-        // Validate cloud data before using
-        const validated = validateCloudData(data);
-
-        // Only proceed if we got any valid data
-        if (validated.students.length > 0 || validated.lessons.length > 0 || validated.payments.length > 0) {
-          students = validated.students;
-          lessons = validated.lessons;
-          payments = validated.payments;
-          if (validated.vehicleData !== undefined) vehicleData = validated.vehicleData;
-          kmHistory = validated.kmHistory;
-
-          // Save to localStorage
-          localStorage.setItem('drv_students', JSON.stringify(students));
-          localStorage.setItem('drv_lessons', JSON.stringify(lessons));
-          localStorage.setItem('drv_payments', JSON.stringify(payments));
-          localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
-          localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
-          localStorage.setItem('drv_last_save', new Date().toISOString()); // Update timestamp after cloud recovery
-
-          // Clear corrupted state if cloud load succeeded
-          if (dataCorrupted) {
-            dataCorrupted = false;
-            const banner = document.getElementById('corruptedBanner');
-            if (banner) {
-              banner.remove();
-              document.body.style.paddingTop = '';
-            }
-          }
-
-          // CRITICAL: Invalidate balance cache after data replacement
-          invalidateBalanceCache();
-
-          return true;
-        }
-      }
-    }
-    return false;
-  } catch (err) {
-    console.error('Load from cloud error:', err);
-    return false;
-  }
-}
-
-// Force recovery from cloud - used when local data is corrupted
+// Force recovery from cloud
 async function recoverFromCloud() {
   if (!window.firebaseReady || !firebaseUserId) {
     showToast('אין חיבור לענן - נא להתחבר לאינטרנט');
@@ -1513,7 +1887,7 @@ async function recoverFromCloud() {
 
   showLoading();
   try {
-    const success = await loadFromCloud(true); // Force load bypasses timestamp check
+    const success = await loadFromCloud(true);
     if (success) {
       showToast('הנתונים שוחזרו בהצלחה מהענן');
       renderAll();
@@ -1525,7 +1899,224 @@ async function recoverFromCloud() {
   }
 }
 
-// Initialize Firebase auth
+// ============================================================
+// PHONE AUTH (OTP) SYSTEM
+// ============================================================
+let phoneRecaptchaVerifier = null;
+let phoneConfirmationResult = null;
+let otpTimerInterval = null;
+
+function showLoginScreen() {
+  document.getElementById('loginScreen').classList.remove('hidden');
+}
+
+function hideLoginScreen() {
+  document.getElementById('loginScreen').classList.add('hidden');
+}
+
+function resetLoginToPhone() {
+  document.getElementById('loginStepPhone').classList.add('active');
+  document.getElementById('loginStepOtp').classList.remove('active');
+  document.getElementById('loginPhoneError').classList.remove('show');
+  document.getElementById('loginOtpError').classList.remove('show');
+  document.getElementById('loginPhone').value = '';
+  document.getElementById('loginOtpCode').value = '';
+  document.getElementById('loginSendCodeBtn').disabled = false;
+  if (otpTimerInterval) clearInterval(otpTimerInterval);
+}
+
+function setupRecaptcha() {
+  if (phoneRecaptchaVerifier) return;
+  try {
+    phoneRecaptchaVerifier = new window.firebaseRecaptchaVerifier(window.firebaseAuth, 'recaptcha-container', {
+      size: 'invisible',
+      callback: () => {
+        // reCAPTCHA solved
+      }
+    });
+  } catch (err) {
+    console.error('reCAPTCHA setup error:', err);
+  }
+}
+
+async function sendOtpCode() {
+  const phoneInput = document.getElementById('loginPhone').value.trim();
+  const errorEl = document.getElementById('loginPhoneError');
+  const sendBtn = document.getElementById('loginSendCodeBtn');
+
+  // Clean and validate phone number
+  const digits = phoneInput.replace(/[\s\-()]/g, '');
+  if (!digits || digits.length < 9 || !/^\d+$/.test(digits)) {
+    errorEl.textContent = '❌ מספר טלפון לא תקין';
+    errorEl.classList.add('show');
+    return;
+  }
+
+  // Format to international
+  let fullNumber;
+  if (digits.startsWith('0')) {
+    fullNumber = '+972' + digits.slice(1);
+  } else if (digits.startsWith('972')) {
+    fullNumber = '+' + digits;
+  } else {
+    fullNumber = '+972' + digits;
+  }
+
+  errorEl.classList.remove('show');
+  sendBtn.disabled = true;
+  sendBtn.textContent = '⏳ שולח...';
+
+  try {
+    setupRecaptcha();
+    phoneConfirmationResult = await window.firebaseSignInWithPhoneNumber(
+      window.firebaseAuth,
+      fullNumber,
+      phoneRecaptchaVerifier
+    );
+
+    // Switch to OTP step
+    document.getElementById('loginStepPhone').classList.remove('active');
+    document.getElementById('loginStepOtp').classList.add('active');
+    document.getElementById('loginOtpInfo').textContent = `קוד אימות נשלח ל-${fullNumber}`;
+
+    // Store phone for later use
+    localStorage.setItem('drv_user_phone', fullNumber);
+
+    // Start countdown timer (60 seconds)
+    startOtpTimer(60);
+  } catch (err) {
+    console.error('Send OTP error:', err);
+    let errorMsg = '❌ שגיאה בשליחת קוד';
+    if (err.code === 'auth/invalid-phone-number') errorMsg = '❌ מספר טלפון לא תקין';
+    else if (err.code === 'auth/too-many-requests') errorMsg = '❌ יותר מדי ניסיונות, נסה מאוחר יותר';
+    else if (err.code === 'auth/quota-exceeded') errorMsg = '❌ חרגת ממכסת השליחות, נסה מאוחר יותר';
+    errorEl.textContent = errorMsg;
+    errorEl.classList.add('show');
+    sendBtn.disabled = false;
+    sendBtn.textContent = '📱 שלח קוד אימות';
+    // Reset reCAPTCHA for retry
+    phoneRecaptchaVerifier = null;
+  }
+}
+
+function startOtpTimer(seconds) {
+  let remaining = seconds;
+  const timerEl = document.getElementById('loginTimer');
+  timerEl.textContent = `ניתן לשלוח שוב בעוד ${remaining} שניות`;
+  if (otpTimerInterval) clearInterval(otpTimerInterval);
+  otpTimerInterval = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(otpTimerInterval);
+      timerEl.innerHTML = '<button class="login-btn-outline" onclick="resetLoginToPhone();sendOtpCode()">📱 שלח קוד חדש</button>';
+    } else {
+      timerEl.textContent = `ניתן לשלוח שוב בעוד ${remaining} שניות`;
+    }
+  }, 1000);
+}
+
+async function verifyOtpCode() {
+  const code = document.getElementById('loginOtpCode').value.trim();
+  const errorEl = document.getElementById('loginOtpError');
+  const verifyBtn = document.getElementById('loginVerifyBtn');
+
+  if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
+    errorEl.textContent = '❌ קוד אימות חייב להכיל 6 ספרות';
+    errorEl.classList.add('show');
+    return;
+  }
+
+  if (!phoneConfirmationResult) {
+    errorEl.textContent = '❌ שגיאה - נא לשלוח קוד חדש';
+    errorEl.classList.add('show');
+    return;
+  }
+
+  errorEl.classList.remove('show');
+  verifyBtn.disabled = true;
+  verifyBtn.textContent = '⏳ מאמת...';
+
+  try {
+    await phoneConfirmationResult.confirm(code);
+    // onAuthStateChanged will handle the rest
+    hideLoginScreen();
+    if (otpTimerInterval) clearInterval(otpTimerInterval);
+  } catch (err) {
+    console.error('Verify OTP error:', err);
+    let errorMsg = '❌ קוד שגוי, נסה שוב';
+    if (err.code === 'auth/invalid-verification-code') errorMsg = '❌ קוד אימות שגוי';
+    else if (err.code === 'auth/code-expired') errorMsg = '❌ הקוד פג תוקף - שלח קוד חדש';
+    errorEl.textContent = errorMsg;
+    errorEl.classList.add('show');
+    verifyBtn.disabled = false;
+    verifyBtn.textContent = '🔓 כניסה';
+  }
+}
+
+async function logoutUser() {
+  const confirmed = await customConfirm('האם להתנתק?\n\nהנתונים שלך נשמרים בענן ותוכל להתחבר שוב מכל מכשיר.', 'התנתקות', '🚪');
+  if (!confirmed) return;
+
+  try {
+    await window.firebaseSignOut(window.firebaseAuth);
+    firebaseUserId = null;
+    localStorage.removeItem('drv_firebase_uid');
+    localStorage.removeItem('drv_user_phone');
+    showLoginScreen();
+    showToast('✅ התנתקת בהצלחה');
+  } catch (err) {
+    console.error('Logout error:', err);
+    showToast('❌ שגיאה בהתנתקות');
+  }
+}
+
+// Migrate anonymous auth data to phone auth account
+async function migrateAnonymousToPhone(anonymousUid, newUid) {
+  if (!anonymousUid || anonymousUid === newUid) return;
+  try {
+    const db = window.firebaseDB;
+
+    // Check if anonymous user had old-format data
+    const oldUserDoc = window.firebaseDoc(db, 'users', anonymousUid);
+    const oldDocSnap = await window.firebaseGetDoc(oldUserDoc);
+
+    if (oldDocSnap.exists()) {
+      const oldData = oldDocSnap.data();
+
+      // Check if old format (blob) or new format (subcollections)
+      if (oldData.students && Array.isArray(oldData.students)) {
+        // Old format: migrate blob to new user's subcollections
+        await migrateOldFormatToSubcollections(db, newUid, oldData);
+      } else {
+        // New format: copy subcollections
+        const collections = ['students', 'lessons', 'payments'];
+        for (const collName of collections) {
+          const oldCollRef = window.firebaseCollection(db, 'users', anonymousUid, collName);
+          const snap = await window.firebaseGetDocs(oldCollRef);
+          if (!snap.empty) {
+            const items = [];
+            snap.forEach(doc => items.push(doc.data()));
+            await syncSubcollection(db, newUid, collName, items, 'id');
+          }
+        }
+
+        // Copy vehicle data
+        const oldVehicleDoc = window.firebaseDoc(db, 'users', anonymousUid, 'vehicle', 'data');
+        const oldVehicleSnap = await window.firebaseGetDoc(oldVehicleDoc);
+        if (oldVehicleSnap.exists()) {
+          const newVehicleDoc = window.firebaseDoc(db, 'users', newUid, 'vehicle', 'data');
+          await window.firebaseSetDoc(newVehicleDoc, oldVehicleSnap.data());
+        }
+      }
+
+      console.log('Anonymous data migrated to phone auth account');
+    }
+  } catch (err) {
+    console.error('Migration from anonymous error:', err);
+  }
+}
+
+// Initialize Firebase auth - Phone Auth with persistent login
 function initFirebaseAuth() {
   if (!window.firebaseReady) {
     window.addEventListener('firebaseReady', initFirebaseAuth);
@@ -1534,28 +2125,72 @@ function initFirebaseAuth() {
 
   window.firebaseOnAuthStateChanged(window.firebaseAuth, async (user) => {
     if (user) {
-      firebaseUserId = user.uid;
-      localStorage.setItem('drv_firebase_uid', user.uid);
+      // User is signed in
+      const isPhoneUser = user.providerData && user.providerData.some(p => p.providerId === 'phone');
+      const isAnonymous = user.isAnonymous;
 
-      // Try to load from cloud
-      const loadedFromCloud = await loadFromCloud();
-      if (loadedFromCloud) {
-        showToast('☁️ נתונים נטענו מהענן');
-        renderAll();
-      } else {
-        // Sync local to cloud
-        syncToCloud();
+      if (isPhoneUser || isAnonymous) {
+        const previousUid = localStorage.getItem('drv_firebase_uid');
+        firebaseUserId = user.uid;
+        localStorage.setItem('drv_firebase_uid', user.uid);
+
+        // If we had anonymous data and now have phone auth, migrate
+        if (isPhoneUser && previousUid && previousUid !== user.uid) {
+          showLoading('מעביר נתונים...');
+          await migrateAnonymousToPhone(previousUid, user.uid);
+          hideLoading();
+        }
+
+        hideLoginScreen();
+
+        // Update logged-in phone display
+        const phoneDisplay = document.getElementById('loggedInPhone');
+        if (phoneDisplay) {
+          const phone = user.phoneNumber || localStorage.getItem('drv_user_phone') || '';
+          phoneDisplay.textContent = phone ? `📱 ${phone}` : '';
+        }
+
+        // Try to load from cloud (Firestore is source of truth when online)
+        if (isOnline) {
+          const loadedFromCloud = await loadFromCloud();
+          if (loadedFromCloud) {
+            renderAll();
+          } else {
+            // No cloud data yet, or local is newer - sync local to cloud
+            syncToCloud();
+          }
+        }
       }
     } else {
-      // Sign in anonymously
-      try {
-        await window.firebaseSignInAnonymously(window.firebaseAuth);
-      } catch (err) {
-        console.error('Auth error:', err);
-      }
+      // No user - show login screen
+      firebaseUserId = null;
+      showLoginScreen();
     }
   });
 }
+
+// Auto-format phone input
+document.addEventListener('DOMContentLoaded', () => {
+  const phoneInput = document.getElementById('loginPhone');
+  if (phoneInput) {
+    phoneInput.addEventListener('input', (e) => {
+      let val = e.target.value.replace(/[^\d\-]/g, '');
+      e.target.value = val;
+    });
+    phoneInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendOtpCode();
+    });
+  }
+  const otpInput = document.getElementById('loginOtpCode');
+  if (otpInput) {
+    otpInput.addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/[^\d]/g, '').slice(0, 6);
+    });
+    otpInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') verifyOtpCode();
+    });
+  }
+});
 
 // Start Firebase auth when ready
 if (window.firebaseReady) {
@@ -1858,13 +2493,14 @@ function showCorruptedDataBanner() {
 }
 
 // Returns true if save succeeded, false if failed
-// BLOCKS all saves when data is corrupted
+// Firestore = source of truth when online; localStorage = cache + offline fallback
 function saveData() {
   if (dataCorrupted) {
     showToast('❌ מצב קריאה בלבד - לא ניתן לשמור. נא לייבא גיבוי.');
     return false;
   }
   try {
+    // Always save to localStorage as cache (fast, synchronous)
     localStorage.setItem('drv_students', JSON.stringify(students));
     localStorage.setItem('drv_lessons', JSON.stringify(lessons));
     localStorage.setItem('drv_payments', JSON.stringify(payments));
@@ -1876,9 +2512,12 @@ function saveData() {
     // Backup to IndexedDB (async, non-blocking)
     saveToIndexedDB();
 
-    // Sync to Firebase (async, non-blocking)
+    // Sync to Firestore (source of truth) - async, non-blocking
     if (isOnline && firebaseUserId) {
       syncToCloud();
+    } else {
+      // Mark that we have pending local changes to sync when back online
+      hasPendingLocalChanges = true;
     }
 
     return true;
@@ -3870,6 +4509,7 @@ function saveVehicleData() {
     return false;
   }
   try {
+    // Save to localStorage as cache
     localStorage.setItem('drv_vehicle', JSON.stringify(vehicleData));
     localStorage.setItem('drv_km_history', JSON.stringify(kmHistory));
     localStorage.setItem('drv_last_save', new Date().toISOString());
@@ -3877,9 +4517,11 @@ function saveVehicleData() {
     // Backup to IndexedDB (async, non-blocking)
     saveToIndexedDB();
 
-    // Sync to Firebase (async, non-blocking)
+    // Sync to Firestore (source of truth) - async, non-blocking
     if (isOnline && firebaseUserId) {
       syncToCloud();
+    } else {
+      hasPendingLocalChanges = true;
     }
 
     return true;
