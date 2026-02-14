@@ -1,7 +1,7 @@
 // נהג בסדר - Service Worker
-// גרסה: 4.0.0 - Fix reCAPTCHA Phone Auth
+// גרסה: 4.1.0 - Fix Phone Auth operation-not-allowed
 
-const CACHE_NAME = 'nahag-baseder-v4';
+const CACHE_NAME = 'nahag-baseder-v4.1';
 
 // קבצים לשמירה במטמון
 const STATIC_ASSETS = [
