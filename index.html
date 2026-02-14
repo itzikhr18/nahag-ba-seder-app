@@ -74,13 +74,9 @@
   window.firebaseInitRecaptchaConfig = initializeRecaptchaConfig;
   window.firebaseReady = true;
 
-  // Initialize reCAPTCHA Enterprise config for phone auth
-  try {
-    await initializeRecaptchaConfig(auth);
-    console.log('reCAPTCHA config initialized');
-  } catch (e) {
-    console.warn('initializeRecaptchaConfig not available or failed:', e.message);
-  }
+  // Note: initializeRecaptchaConfig removed - it forces reCAPTCHA Enterprise
+  // which causes auth/operation-not-allowed if not configured in Google Cloud.
+  // Standard invisible reCAPTCHA v2 works fine for phone auth.
 
   // Dispatch event when Firebase is ready
   window.dispatchEvent(new Event('firebaseReady'));
@@ -2017,9 +2013,10 @@ async function sendOtpCode() {
     if (errCode === 'auth/invalid-phone-number') errorMsg = '❌ מספר טלפון לא תקין';
     else if (errCode === 'auth/too-many-requests') errorMsg = '❌ יותר מדי ניסיונות, נסה מאוחר יותר';
     else if (errCode === 'auth/quota-exceeded') errorMsg = '❌ חרגת ממכסת השליחות, נסה מאוחר יותר';
-    else if (errCode === 'auth/operation-not-allowed') errorMsg = '❌ Phone Auth לא מופעל - ' + errMsg;
-    else if (errCode === 'auth/invalid-app-credential') errorMsg = '❌ בעיית reCAPTCHA - רענן את הדף ונסה שוב';
+    else if (errCode === 'auth/operation-not-allowed') errorMsg = '❌ שגיאת הרשאה - רענן את הדף ונסה שוב. אם הבעיה נמשכת, בדוק הגדרות Authorized Domains ב-Firebase Console';
+    else if (errCode === 'auth/invalid-app-credential') errorMsg = '❌ בעיית אימות - רענן את הדף ונסה שוב';
     else if (errCode === 'auth/network-request-failed') errorMsg = '❌ בעיית רשת - בדוק חיבור לאינטרנט';
+    else if (errCode === 'auth/captcha-check-failed') errorMsg = '❌ בעיית reCAPTCHA - רענן את הדף ונסה שוב';
     errorEl.textContent = errorMsg;
     errorEl.style.wordBreak = 'break-all';
     errorEl.classList.add('show');
