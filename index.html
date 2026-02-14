@@ -37,7 +37,7 @@
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore, doc, setDoc, getDoc, getDocs, deleteDoc, collection, writeBatch, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-  import { getAuth, signInAnonymously, onAuthStateChanged, signInWithPhoneNumber, RecaptchaVerifier, linkWithCredential, PhoneAuthProvider, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+  import { getAuth, signInAnonymously, onAuthStateChanged, signInWithPhoneNumber, RecaptchaVerifier, linkWithCredential, PhoneAuthProvider, signOut, initializeRecaptchaConfig } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyC5TE_diBTNBYT2IMPJH0YsgD31spBqnE",
@@ -71,7 +71,16 @@
   window.firebaseLinkWithCredential = linkWithCredential;
   window.firebasePhoneAuthProvider = PhoneAuthProvider;
   window.firebaseSignOut = signOut;
+  window.firebaseInitRecaptchaConfig = initializeRecaptchaConfig;
   window.firebaseReady = true;
+
+  // Initialize reCAPTCHA Enterprise config for phone auth
+  try {
+    await initializeRecaptchaConfig(auth);
+    console.log('reCAPTCHA config initialized');
+  } catch (e) {
+    console.warn('initializeRecaptchaConfig not available or failed:', e.message);
+  }
 
   // Dispatch event when Firebase is ready
   window.dispatchEvent(new Event('firebaseReady'));
@@ -2002,14 +2011,17 @@ async function sendOtpCode() {
     startOtpTimer(60);
   } catch (err) {
     console.error('Send OTP error:', err);
-    let errorMsg = '❌ שגיאה בשליחת קוד (' + (err.code || err.message || 'unknown') + ')';
-    if (err.code === 'auth/invalid-phone-number') errorMsg = '❌ מספר טלפון לא תקין';
-    else if (err.code === 'auth/too-many-requests') errorMsg = '❌ יותר מדי ניסיונות, נסה מאוחר יותר';
-    else if (err.code === 'auth/quota-exceeded') errorMsg = '❌ חרגת ממכסת השליחות, נסה מאוחר יותר';
-    else if (err.code === 'auth/operation-not-allowed') errorMsg = '❌ Phone Auth לא מופעל - יש להפעיל ב-Firebase Console';
-    else if (err.code === 'auth/invalid-app-credential') errorMsg = '❌ בעיית reCAPTCHA - רענן את הדף ונסה שוב';
-    else if (err.code === 'auth/network-request-failed') errorMsg = '❌ בעיית רשת - בדוק חיבור לאינטרנט';
+    const errCode = err.code || '';
+    const errMsg = err.message || '';
+    let errorMsg = '❌ שגיאה: ' + errCode + ' | ' + errMsg;
+    if (errCode === 'auth/invalid-phone-number') errorMsg = '❌ מספר טלפון לא תקין';
+    else if (errCode === 'auth/too-many-requests') errorMsg = '❌ יותר מדי ניסיונות, נסה מאוחר יותר';
+    else if (errCode === 'auth/quota-exceeded') errorMsg = '❌ חרגת ממכסת השליחות, נסה מאוחר יותר';
+    else if (errCode === 'auth/operation-not-allowed') errorMsg = '❌ Phone Auth לא מופעל - יש להפעיל ב-Firebase Console';
+    else if (errCode === 'auth/invalid-app-credential') errorMsg = '❌ בעיית reCAPTCHA - רענן את הדף ונסה שוב';
+    else if (errCode === 'auth/network-request-failed') errorMsg = '❌ בעיית רשת - בדוק חיבור לאינטרנט';
     errorEl.textContent = errorMsg;
+    errorEl.style.wordBreak = 'break-all';
     errorEl.classList.add('show');
     sendBtn.disabled = false;
     sendBtn.textContent = '📱 שלח קוד אימות';
