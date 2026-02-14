@@ -2017,7 +2017,7 @@ async function sendOtpCode() {
     if (errCode === 'auth/invalid-phone-number') errorMsg = '❌ מספר טלפון לא תקין';
     else if (errCode === 'auth/too-many-requests') errorMsg = '❌ יותר מדי ניסיונות, נסה מאוחר יותר';
     else if (errCode === 'auth/quota-exceeded') errorMsg = '❌ חרגת ממכסת השליחות, נסה מאוחר יותר';
-    else if (errCode === 'auth/operation-not-allowed') errorMsg = '❌ Phone Auth לא מופעל - יש להפעיל ב-Firebase Console';
+    else if (errCode === 'auth/operation-not-allowed') errorMsg = '❌ Phone Auth לא מופעל - ' + errMsg;
     else if (errCode === 'auth/invalid-app-credential') errorMsg = '❌ בעיית reCAPTCHA - רענן את הדף ונסה שוב';
     else if (errCode === 'auth/network-request-failed') errorMsg = '❌ בעיית רשת - בדוק חיבור לאינטרנט';
     errorEl.textContent = errorMsg;
